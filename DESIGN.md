@@ -382,7 +382,7 @@ npx postject look NODE_SEA_BLOB sea-prep.blob \
 codesign --sign - look   # 仅 macOS
 
 # 5) 运行
-./look README.md
+./preview README.md
 ```
 
 `scripts/build-binary.mjs` 自动化上述步骤。产物 ~90MB（含 Node 运行时）。Node 25.5+ 可用 `node --build-sea sea-config.json` 一步完成。
@@ -421,7 +421,7 @@ codesign --sign - look   # 仅 macOS
 4. `highlight.ts` + `CodeView.vue`：shiki 集成 + 高亮代码视图，跑通 `look src/terminal.ts`
 5. `lang.ts`：扩展名映射补全
 6. 交互打磨：`onKey` 全键位 + footer 提示 + resize
-7. `scripts/build-binary.mjs` + `sea-config.json`：SEA 打包，跑通 `./look README.md`
+7. `scripts/build-binary.mjs` + `sea-config.json`：SEA 打包，跑通 `./preview README.md`
 8. README
 9. `test/` 验收脚本 + tmux E2E 跑通（见第 13–18 节）
 
@@ -464,7 +464,7 @@ if (process.env.VT_SMOKE === "1") {
 - `tmux send-keys -t look-acc <key>`：向 pane pty 写入按键 = 用户敲键。app 在 raw mode 下逐字节读取，与真实终端一致。
 - `tmux capture-pane -p -t look-acc`：抓取 pane 可见文本（纯文本）。
 - `tmux capture-pane -p -e -t look-acc`：抓取时保留 ANSI 转义码，用于断言颜色。
-- 退出码：在 pane 里跑 `./look FILE; echo "EXIT:$?"`，退出后 `EXIT:N` 出现在 pane 文本里，断言之。
+- 退出码：在 pane 里跑 `./preview FILE; echo "EXIT:$?"`，退出后 `EXIT:N` 出现在 pane 文本里，断言之。
 - alt-screen 恢复：app 用 `altScreen:true`，退出后恢复 alt-screen 保存的画面。启动前先 `echo MARKER` 打个标记，退出后断言标记重现，证明 alt-screen 正确还原。
 - resize：`tmux resize-window -t look-acc -x 120 -y 40` → pane pty 尺寸变化 → Node stdout `resize` 事件 → app 重排。
 
@@ -487,7 +487,7 @@ if (process.env.VT_SMOKE === "1") {
 
 ```bash
 SESSION="look-acc"
-BIN="${BIN:-./look}"
+BIN="${BIN:-./preview}"
 FIX="$(cd "$(dirname "$0")/../fixtures" && pwd)"
 
 tmx_new() {                       # $1=cols $2=rows
@@ -574,7 +574,7 @@ say_exit() {                      # $1=desc $2=期望退出码
 
 ### 15.3 退出与 alt-screen 恢复
 
-启动前 seed 标记：`tmx_run "echo MK_$_OK; ./look sample.md; echo EXIT:$?"`。
+启动前 seed 标记：`tmx_run "echo MK_$_OK; ./preview sample.md; echo EXIT:$?"`。
 
 | # | 用例 | 操作 | 断言 | 通过标准 |
 |---|---|---|---|---|
@@ -591,22 +591,22 @@ say_exit() {                      # $1=desc $2=期望退出码
 
 ### 15.5 错误处理（退出码）
 
-每个用 `tmx_run "./look <args>; echo EXIT:$?"`，app 自行退出，wait_for `EXIT:`。
+每个用 `tmx_run "./preview <args>; echo EXIT:$?"`，app 自行退出，wait_for `EXIT:`。
 
 | # | 用例 | 命令 | 断言 | 通过标准 |
 |---|---|---|---|---|
-| E1 | 无参数 | `./look` | `say_exit 2`；CAP 含 usage/help | 中 |
-| E2 | 文件不存在 | `./look nope.md` | `say_exit 1`；CAP 含错误信息 | 中 |
-| E3 | 二进制文件 | `./look binary.bin` | `say_exit 1`；CAP 含 `binary` | 中 |
-| E4 | 目录 | `./look test/fixtures` | `say_exit 1`；CAP 含错误 | 中 |
-| E5 | 多余参数 | `./look a.md b.md` | `say_exit 2` | 中 |
+| E1 | 无参数 | `./preview` | `say_exit 2`；CAP 含 usage/help | 中 |
+| E2 | 文件不存在 | `./preview nope.md` | `say_exit 1`；CAP 含错误信息 | 中 |
+| E3 | 二进制文件 | `./preview binary.bin` | `say_exit 1`；CAP 含 `binary` | 中 |
+| E4 | 目录 | `./preview test/fixtures` | `say_exit 1`；CAP 含错误 | 中 |
+| E5 | 多余参数 | `./preview a.md b.md` | `say_exit 2` | 中 |
 
 ### 15.6 非 TTY（管道）
 
 | # | 用例 | 命令 | 断言 | 通过标准 |
 |---|---|---|---|---|
-| F1 | 管道直出 | `./look sample.md \| cat; echo EXIT:$?` | `say_exit 0`；CAP 含 sample.md 的**原始**标题文本（非 TUI 样式） | 中 |
-| F2 | 代码管道 | `./look sample.ts \| cat` | `say_exit 0`；CAP 含原始代码（无 truecolor） | 中 |
+| F1 | 管道直出 | `./preview sample.md \| cat; echo EXIT:$?` | `say_exit 0`；CAP 含 sample.md 的**原始**标题文本（非 TUI 样式） | 中 |
+| F2 | 代码管道 | `./preview sample.ts \| cat` | `say_exit 0`；CAP 含原始代码（无 truecolor） | 中 |
 
 ### 15.7 超大文件 / 虚拟化
 
@@ -714,7 +714,7 @@ tmx_kill
 ```bash
 #!/usr/bin/env bash
 set -u
-BIN="${BIN:-./look}"
+BIN="${BIN:-./preview}"
 command -v tmux >/dev/null || { echo "需要 tmux"; exit 127; }
 [ -x "$BIN" ] || { echo "先 build: pnpm build && bash scripts/build-binary.mjs"; exit 1; }
 bash test/e2e/gen-large.sh
@@ -729,15 +729,15 @@ echo "PASS=$PASS FAIL=$FAIL"
 ### 17.3 运行
 
 ```bash
-pnpm build && bash scripts/build-binary.mjs    # 产出 ./look
-BIN=./look bash test/e2e/run-acceptance.sh      # 跑全部验收
+pnpm build && bash scripts/build-binary.mjs    # 产出 ./preview
+BIN=./preview bash test/e2e/run-acceptance.sh      # 跑全部验收
 # 或只测滚动：
-BIN=./look bash test/e2e/scenarios/B-scroll.sh
+BIN=./preview bash test/e2e/scenarios/B-scroll.sh
 ```
 
 ### 17.4 CI 集成
 
-- GitHub Actions：`apt-get install -y tmux`（ubuntu runner 自带或一键装），`BIN=./look bash test/e2e/run-acceptance.sh`。
+- GitHub Actions：`apt-get install -y tmux`（ubuntu runner 自带或一键装），`BIN=./preview bash test/e2e/run-acceptance.sh`。
 - tmux 脱离会话非交互，CI 环境可直接跑，无需真实显示器。
 
 ---
@@ -755,7 +755,7 @@ BIN=./look bash test/e2e/scenarios/B-scroll.sh
 - [x] **非 TTY**：管道输出原始内容、退出 0
 - [x] **resize**：放大/缩小后 header/footer 定位正确、不崩
 - [x] **大文件**：2000 行可滚、启动 < 阈值（实测 ~0.4s）
-- [x] **二进制**：`./look README.md` 真实可用，SEA 产物同样可用（63/63 PASS）
+- [x] **二进制**：`./preview README.md` 真实可用，SEA 产物同样可用（63/63 PASS）
 
 ---
 

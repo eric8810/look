@@ -1,6 +1,7 @@
 node_modules/
 dist/
 look
+preview
 sea-prep.blob
 *.log
 __pycache__/

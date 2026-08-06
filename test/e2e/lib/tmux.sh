@@ -5,7 +5,7 @@
 # pty+pyte runner (test/e2e/run_acceptance.py). This file is provided for
 # environments where tmux is available and an tmux-based run is desired.
 SESSION="look-acc"
-BIN="${BIN:-./look}"
+BIN="${BIN:-./preview}"
 FIX="$(cd "$(dirname "$0")/../fixtures" && pwd)"
 
 tmx_new() {                       # $1=cols $2=rows

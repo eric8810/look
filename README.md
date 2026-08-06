@@ -36,7 +36,7 @@ preview README.md            # 或 look README.md
 pnpm install
 pnpm build
 node scripts/build-binary.mjs
-./look README.md
+./preview README.md
 ```
 
 ## 从源码开发
@@ -110,7 +110,7 @@ files, and markdown elements (DESIGN.md §15, scenarios A–H).
 
 ```bash
 # Against the SEA binary:
-BIN=./look python3 test/e2e/run_acceptance.py
+BIN=./preview python3 test/e2e/run_acceptance.py
 
 # Against the plain bundle:
 BIN="node dist/terminal.cjs" python3 test/e2e/run_acceptance.py

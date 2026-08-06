@@ -3,7 +3,7 @@
 look — E2E acceptance test suite (scenarios A–H from DESIGN.md §15).
 
 Uses a real pty + pyte terminal emulator (tmux is unavailable in this env).
-Run:  BIN=./look python3 test/e2e/run_acceptance.py
+Run:  BIN=./preview python3 test/e2e/run_acceptance.py
       BIN="node dist/terminal.js" python3 test/e2e/run_acceptance.py
 """
 import os
@@ -136,7 +136,7 @@ def scenario_B():
 # C. 退出与 alt-screen 恢复
 # --------------------------------------------------------------------------
 def _exit_case(desc, key, expected_code):
-    # seed marker on main screen, run look, capture EXIT:N + marker restore
+    # seed marker on main screen, run preview, capture EXIT:N + marker restore
     cmd = f'echo "MK_OK_HERE"; cd {ROOT} && {" ".join(BIN)} test/fixtures/sample.md; echo "EXIT:$?"'
     s = run_shell(cmd, cols=80, rows=24, cwd=ROOT)
     if not s.wait_for("Sample Markdown", 8):
