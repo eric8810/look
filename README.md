@@ -4,6 +4,8 @@ A minimal terminal file previewer — renders **markdown** with native layout an
 view **code/text** with token-level syntax highlighting. Built with
 [vue-tui](https://vue-tui.pages.dev/).
 
+<img width="909" height="683" alt="image" src="https://github.com/user-attachments/assets/d2132127-3282-4403-89cb-0a981735dde6" />
+
 ```
 $ look README.md          # markdown: headings/lists/tables/code/links
 $ look src/terminal.ts    # code: shiki truecolor syntax highlight
