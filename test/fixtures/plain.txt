@@ -1,0 +1,25 @@
+This is a plain text file.
+It has multiple lines.
+No syntax highlighting should be applied.
+Line number four here.
+Line number five here.
+Line number six here.
+Line number seven here.
+Line number eight here.
+Line number nine here.
+Line number ten here.
+Line number eleven here.
+Line number twelve here.
+Line number thirteen here.
+Line number fourteen here.
+Line number fifteen here.
+Line number sixteen here.
+Line number seventeen here.
+Line number eighteen here.
+Line number nineteen here.
+Line number twenty here.
+Line number twenty-one here.
+Line number twenty-two here.
+Line number twenty-three here.
+Line number twenty-four here.
+Line number twenty-five here.

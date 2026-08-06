@@ -1,0 +1,6 @@
+{
+  "main": "dist/terminal.cjs",
+  "mainFormat": "commonjs",
+  "output": "sea-prep.blob",
+  "useCodeCache": true
+}
