@@ -296,6 +296,67 @@ def scenario_H():
     s.send_key("q"); s.wait_exit(3); s.close()
 
 
+# --------------------------------------------------------------------------
+# I. mermaid 图渲染 + markdown 代码块上色（Rust 版新增能力）
+# --------------------------------------------------------------------------
+# 盒绘字符集合（Unicode box-drawing / ASCII 线）
+BOX_CHARS = set("│┌┐└┘─━┃╋┣┫├┤═║╔╗╚╝+-|><^v")
+
+
+def _has_box_chars(text):
+    return any(c in BOX_CHARS for c in text)
+
+
+def scenario_I():
+    print("== I-mermaid-codeblock ==")
+    # I1 markdown 内 mermaid 块渲染成图（盒绘字符，非源码）
+    s = session("mermaid.md")
+    check(s.wait_for("Mermaid in Markdown", 6), "I1 start")
+    # 向下滚动找到图
+    found_box = False
+    for _ in range(8):
+        txt = s.screen_text()
+        if _has_box_chars(txt) and "flowchart TD" not in txt:
+            found_box = True
+            break
+        s.send_key("Space"); s.feed(0.25)
+    check(found_box, "I1 mermaid block rendered as box-drawing (not source)")
+    s.send_key("q"); s.wait_exit(3); s.close()
+
+    # I2 独立 .mmd 文件渲染成图
+    s = session("sample.mmd")
+    s.feed(0.6)
+    txt = s.screen_text()
+    check(_has_box_chars(txt), "I2 .mmd rendered as box-drawing", "no box chars")
+    check("flowchart TD" not in txt, "I2 .mmd source not shown as text")
+    s.send_key("q"); s.wait_exit(3); s.close()
+
+    # I3 markdown 内代码块上色（truecolor）
+    s = session("codeblock.md")
+    check(s.wait_for("Code Block", 6), "I3 start")
+    # 代码块在下方，滚动到代码块
+    has_color = False
+    for _ in range(8):
+        raw = s.raw_text()
+        if "\x1b[38;2;" in raw:
+            has_color = True
+            break
+        s.send_key("Space"); s.feed(0.25)
+    check(has_color, "I3 code block highlighted with truecolor", "no \\x1b[38;2;")
+    s.send_key("q"); s.wait_exit(3); s.close()
+
+    # I4 mermaid 解析失败降级（不崩，显示内容，exit 0）
+    bad = os.path.join(FIX, "bad.mmd")
+    with open(bad, "w") as f:
+        f.write("this is not valid mermaid at all\n")
+    s = session("bad.mmd")
+    s.feed(0.6)
+    s.send_key("q")
+    code = s.wait_exit(3)
+    check(code == 0, f"I4 invalid mermaid exit 0 (got {code})")
+    s.close()
+
+
 def main():
     print(f"BIN = {BIN}")
     print(f"FIX = {FIX}")
@@ -305,7 +366,7 @@ def main():
         subprocess.run(["bash", os.path.join(ROOT, "test/e2e/gen-large.sh")], check=True)
 
     for sc in [scenario_A, scenario_B, scenario_C, scenario_D,
-               scenario_E, scenario_F, scenario_G, scenario_H]:
+               scenario_E, scenario_F, scenario_G, scenario_H, scenario_I]:
         try:
             sc()
         except Exception as ex:
