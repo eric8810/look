@@ -49,10 +49,10 @@ fn main() {
 
     // TUI 模式
     let exit_code = termio::run(
-        &loaded.content,
+        &parsed.file,
         loaded.mode,
         loaded.syntax_token,
-        &loaded.file_name,
+        &loaded.content,
     );
     exit(exit_code);
 }

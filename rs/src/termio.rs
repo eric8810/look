@@ -1,8 +1,12 @@
 //! crossterm 装配 + TUI 事件循环。
 //!
-//! 职责：raw mode / alt-screen / 鼠标捕获 / 事件读取 / 键位+滚轮映射 / resize / cleanup。
+//! 职责：raw mode / alt-screen / 鼠标捕获 / 事件读取 / 键位+滚轮映射 / resize /
+//! 文件变更热重载（notify） / cleanup。
 
 use std::io::{self, IsTerminal, Stdout};
+use std::path::Path;
+use std::sync::mpsc::channel;
+use std::time::Duration;
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEventKind};
 use crossterm::style::{Attribute, Colored};
@@ -10,6 +14,7 @@ use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use crossterm::execute;
+use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
@@ -18,6 +23,7 @@ use ratatui::widgets::Paragraph;
 use ratatui::Terminal;
 
 use crate::ansi_lines;
+use crate::content;
 use crate::doc::Doc;
 use crate::highlight::Highlighter;
 use crate::lang::Mode;
@@ -40,7 +46,6 @@ pub fn is_tty() -> bool {
 /// 构建 markdown skin：标题用粗体而非下划线。
 fn build_skin() -> termimad::MadSkin {
     let mut skin = termimad::MadSkin::default();
-    // 默认 skin 给所有 header 加了 Underlined（看起来像链接），改为 Bold
     for h in &mut skin.headers {
         h.compound_style
             .object_style
@@ -55,11 +60,14 @@ fn build_skin() -> termimad::MadSkin {
 }
 
 /// 运行 TUI 循环，返回退出码。
+///
+/// `file_path` 用于文件变更监听（热重载）；`mode`/`syntax_token` 由扩展名决定，
+/// 文件类型不会因内容修改而变化，故在加载时一次性确定。
 pub fn run(
-    content: &str,
+    file_path: &str,
     mode: Mode,
     syntax_token: Option<&str>,
-    file_name: &str,
+    initial_content: &str,
 ) -> i32 {
     // 强制启用 ANSI 颜色输出（忽略 NO_COLOR 环境变量）。
     Colored::set_ansi_color_disabled(false);
@@ -78,21 +86,37 @@ pub fn run(
 
     let (w, _h) = current_size(&terminal);
     let content_w = content_width(w);
-    let lines = build_lines(content, mode, syntax_token, content_w, &highlighter, &skin);
+    let lines = build_lines(initial_content, mode, syntax_token, content_w, &highlighter, &skin);
     let mut doc = Doc::new(lines, mode, content_w);
+
+    // 文件变更监听：watcher 线程 → mpsc channel → 事件循环
+    let (tx_file, rx_file) = channel::<()>();
+    let mut watcher = match start_file_watcher(file_path, tx_file) {
+        Some(w) => w,
+        None => {
+            // watcher 启动失败不致命：仍可正常预览，只是无热重载
+            eprintln!("warning: file watch unavailable, live reload disabled");
+            // 走无 watcher 的事件循环
+            let exit_code = event_loop(&mut terminal, &mut doc, file_path, mode, syntax_token, None, &highlighter, &skin);
+            let _ = disable_raw_mode();
+            let _ = execute!(terminal.backend_mut(), crossterm::event::DisableMouseCapture, LeaveAlternateScreen);
+            return exit_code;
+        }
+    };
 
     let exit_code = event_loop(
         &mut terminal,
         &mut doc,
-        content,
+        file_path,
         mode,
         syntax_token,
-        file_name,
+        Some(&rx_file),
         &highlighter,
         &skin,
     );
 
     // Cleanup
+    let _ = watcher.unwatch(Path::new(file_path));
     let _ = disable_raw_mode();
     let _ = execute!(
         terminal.backend_mut(),
@@ -101,6 +125,35 @@ pub fn run(
     );
 
     exit_code
+}
+
+/// 启动文件监听线程。文件被修改时向 channel 发送信号。
+fn start_file_watcher(
+    file_path: &str,
+    tx: std::sync::mpsc::Sender<()>,
+) -> Option<RecommendedWatcher> {
+    let mut watcher = RecommendedWatcher::new(
+        move |res: notify::Result<notify::Event>| {
+            if let Ok(event) = res {
+                // 只关心修改/创建事件（忽略 Access 等噪声）
+                if matches!(
+                    event.kind,
+                    EventKind::Modify(_) | EventKind::Create(_)
+                ) {
+                    let _ = tx.send(());
+                }
+            }
+        },
+        notify::Config::default(),
+    )
+    .ok()?;
+
+    // 监听文件本身（非递归）
+    watcher
+        .watch(Path::new(file_path), RecursiveMode::NonRecursive)
+        .ok()?;
+
+    Some(watcher)
 }
 
 fn current_size(terminal: &Term) -> (u16, u16) {
@@ -119,53 +172,75 @@ fn content_width(term_w: u16) -> u16 {
 fn event_loop(
     terminal: &mut Term,
     doc: &mut Doc,
-    content: &str,
+    file_path: &str,
     mode: Mode,
     syntax_token: Option<&str>,
-    file_name: &str,
+    file_rx: Option<&std::sync::mpsc::Receiver<()>>,
     hl: &Highlighter,
     skin: &termimad::MadSkin,
 ) -> i32 {
-    loop {
-        let _ = terminal.draw(|f| render_frame(f, doc, file_name));
+    // 当前文件内容（用于 resize / 文件变更时重排）
+    let mut content: String = content::reload_content(file_path).unwrap_or_default();
 
-        match event::read() {
-            Ok(Event::Key(k)) => {
-                if k.kind != KeyEventKind::Press {
-                    continue;
-                }
-                match map_key(k) {
-                    Action::Quit(code) => return code,
-                    Action::Scroll(delta) => {
-                        let body_h = body_height(terminal);
-                        doc.scroll(delta, body_h);
+    loop {
+        let _ = terminal.draw(|f| render_frame(f, doc, file_path));
+
+        // 用 poll 非阻塞检查终端事件，间隔检查文件变更 channel
+        if event::poll(Duration::from_millis(200)).unwrap_or(false) {
+            match event::read() {
+                Ok(Event::Key(k)) => {
+                    if k.kind != KeyEventKind::Press {
+                        continue;
                     }
-                    Action::Page(delta) => {
-                        let body_h = body_height(terminal);
-                        let page = body_h as isize;
-                        doc.scroll(delta * page, body_h);
+                    match map_key(k) {
+                        Action::Quit(code) => return code,
+                        Action::Scroll(delta) => {
+                            let body_h = body_height(terminal);
+                            doc.scroll(delta, body_h);
+                        }
+                        Action::Page(delta) => {
+                            let body_h = body_height(terminal);
+                            let page = body_h as isize;
+                            doc.scroll(delta * page, body_h);
+                        }
+                        Action::Top => doc.set_top(0, body_height(terminal)),
+                        Action::Bottom => doc.set_top(usize::MAX, body_height(terminal)),
+                        Action::None => {}
                     }
-                    Action::Top => doc.set_top(0, body_height(terminal)),
-                    Action::Bottom => doc.set_top(usize::MAX, body_height(terminal)),
-                    Action::None => {}
+                }
+                Ok(Event::Mouse(m)) => {
+                    let body_h = body_height(terminal);
+                    match m.kind {
+                        MouseEventKind::ScrollUp => doc.scroll(-1, body_h),
+                        MouseEventKind::ScrollDown => doc.scroll(1, body_h),
+                        _ => {}
+                    }
+                }
+                Ok(Event::Resize(w, h)) => {
+                    let body_h = (h as usize).saturating_sub(2);
+                    let cw = content_width(w);
+                    let new_lines =
+                        build_lines(&content, mode, syntax_token, cw, hl, skin);
+                    doc.replace_lines(new_lines, cw, body_h);
+                }
+                Ok(_) => {}
+                Err(_) => return 1,
+            }
+        }
+
+        // 检查文件变更 channel
+        if let Some(rx) = file_rx {
+            if rx.try_recv().is_ok() {
+                // 文件被修改：重新读取并重排
+                if let Some(new_content) = content::reload_content(file_path) {
+                    content = new_content;
+                    let (w, _h) = current_size(terminal);
+                    let cw = content_width(w);
+                    let body_h = body_height(terminal);
+                    let new_lines = build_lines(&content, mode, syntax_token, cw, hl, skin);
+                    doc.replace_lines(new_lines, cw, body_h);
                 }
             }
-            Ok(Event::Mouse(m)) => {
-                let body_h = body_height(terminal);
-                match m.kind {
-                    MouseEventKind::ScrollUp => doc.scroll(-1, body_h),
-                    MouseEventKind::ScrollDown => doc.scroll(1, body_h),
-                    _ => {}
-                }
-            }
-            Ok(Event::Resize(w, h)) => {
-                let body_h = (h as usize).saturating_sub(2);
-                let cw = content_width(w);
-                let new_lines = build_lines(content, mode, syntax_token, cw, hl, skin);
-                doc.replace_lines(new_lines, cw, body_h);
-            }
-            Ok(_) => {}
-            Err(_) => return 1,
         }
     }
 }

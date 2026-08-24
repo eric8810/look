@@ -68,3 +68,14 @@ pub fn load_content(file_path: &str) -> Loaded {
         syntax_token,
     }
 }
+
+/// 重新读取文件内容（用于文件变更后的热重载）。
+/// 失败时返回 None（保留旧内容，不中断预览）。
+pub fn reload_content(file_path: &str) -> Option<String> {
+    let bytes = fs::read(file_path).ok()?;
+    let sample_len = bytes.len().min(BINARY_SAMPLE);
+    if bytes[..sample_len].contains(&0) {
+        return None; // 二进制文件，跳过
+    }
+    Some(String::from_utf8_lossy(&bytes).into_owned())
+}
