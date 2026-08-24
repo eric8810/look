@@ -86,48 +86,48 @@ def scenario_B():
     print("== B-scroll ==")
     s = session("large.txt")
     check(s.wait_for("MARKER:0000", 6), "B1 initial top MARKER:0000")
-    check(s.row(2) == "MARKER:0000", "B1 row2 == MARKER:0000", s.row(2))
+    check(s.row(2).strip() == "MARKER:0000", "B1 row2 == MARKER:0000", s.row(2))
 
     s.send_keys("j", 10); s.feed(0.3)
-    check(s.row(2) == "MARKER:0010", "B2 j x10 -> MARKER:0010", s.row(2))
+    check(s.row(2).strip() == "MARKER:0010", "B2 j x10 -> MARKER:0010", s.row(2))
 
     s.send_keys("k", 5); s.feed(0.3)
-    check(s.row(2) == "LINE_0005", "B3 k x5 -> LINE_0005", s.row(2))
+    check(s.row(2).strip() == "LINE_0005", "B3 k x5 -> LINE_0005", s.row(2))
 
     s.send_key("Space"); s.feed(0.3)
-    check(s.row(2) == "LINE_0027", "B4 space pgdn +22", s.row(2))
+    check(s.row(2).strip() == "LINE_0027", "B4 space pgdn +22", s.row(2))
 
     s.send_key("PageDown"); s.feed(0.3)
-    check(s.row(2) == "LINE_0049", "B5 PageDown +22", s.row(2))
+    check(s.row(2).strip() == "LINE_0049", "B5 PageDown +22", s.row(2))
 
     s.send_key("PageUp"); s.feed(0.3)
-    check(s.row(2) == "LINE_0027", "B6 PageUp -22", s.row(2))
+    check(s.row(2).strip() == "LINE_0027", "B6 PageUp -22", s.row(2))
 
     s.send_keys("Down", 3); s.feed(0.3)
-    check(s.row(2) == "MARKER:0030", "B7 Down x3 -> MARKER:0030", s.row(2))
+    check(s.row(2).strip() == "MARKER:0030", "B7 Down x3 -> MARKER:0030", s.row(2))
 
     s.send_keys("Up", 3); s.feed(0.3)
-    check(s.row(2) == "LINE_0027", "B8 Up x3", s.row(2))
+    check(s.row(2).strip() == "LINE_0027", "B8 Up x3", s.row(2))
 
     s.send_key("Home"); s.feed(0.3)
-    check(s.row(2) == "MARKER:0000", "B9 Home -> top", s.row(2))
+    check(s.row(2).strip() == "MARKER:0000", "B9 Home -> top", s.row(2))
 
     s.send_key("End"); s.feed(0.4)
     check("LINE_1999" in s.screen_text(), "B10 End -> last page has LINE_1999")
 
     s.send_key("g"); s.feed(0.3)
-    check(s.row(2) == "MARKER:0000", "B11 g -> top", s.row(2))
+    check(s.row(2).strip() == "MARKER:0000", "B11 g -> top", s.row(2))
 
     s.send_key("G"); s.feed(0.4)
     check("LINE_1999" in s.screen_text(), "B12 G -> bottom")
 
     # B13 round-trip g -> G -> g
     s.send_key("g"); s.feed(0.3)
-    check(s.row(2) == "MARKER:0000", "B13a g -> top")
+    check(s.row(2).strip() == "MARKER:0000", "B13a g -> top")
     s.send_key("G"); s.feed(0.4)
     check("LINE_1999" in s.screen_text(), "B13b G -> bottom")
     s.send_key("g"); s.feed(0.3)
-    check(s.row(2) == "MARKER:0000", "B13c g -> top")
+    check(s.row(2).strip() == "MARKER:0000", "B13c g -> top")
 
     s.send_key("q"); s.wait_exit(3); s.close()
 
@@ -262,7 +262,7 @@ def scenario_G():
     for _ in range(5):
         s.send_keys("j", 50); s.feed(0.1)
         s.send_keys("k", 50); s.feed(0.1)
-    check(s.row(2) == "MARKER:0000", "G1 scroll stress ends at top", s.row(2))
+    check(s.row(2).strip() == "MARKER:0000", "G1 scroll stress ends at top", s.row(2))
     s.send_key("q"); s.wait_exit(3); s.close()
 
 

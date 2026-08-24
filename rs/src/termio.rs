@@ -1,16 +1,17 @@
 //! crossterm 装配 + TUI 事件循环。
 //!
-//! 职责：raw mode / alt-screen / 事件读取 / 键位映射 / resize / cleanup。
+//! 职责：raw mode / alt-screen / 鼠标捕获 / 事件读取 / 键位+滚轮映射 / resize / cleanup。
 
 use std::io::{self, IsTerminal, Stdout};
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEventKind};
+use crossterm::style::{Attribute, Colored};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use crossterm::execute;
 use ratatui::backend::CrosstermBackend;
-use ratatui::layout::{Alignment, Constraint, Layout};
+use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
@@ -26,11 +27,31 @@ use crate::viewport::Viewport;
 
 type Term = Terminal<CrosstermBackend<Stdout>>;
 
-const FOOTER: &str = " q quit  ↑↓/jk scroll  space/pgdn  g/G top/bottom  Ctrl+C quit";
+/// 左右边距（字符数）。
+const H_MARGIN: u16 = 1;
+
+const FOOTER: &str = "q quit  ↑↓/jk/scroll  space/pgdn  g/G top/bottom  Ctrl+C quit";
 
 /// 判定 stdout 是否为 TTY。
 pub fn is_tty() -> bool {
     io::stdout().is_terminal()
+}
+
+/// 构建 markdown skin：标题用粗体而非下划线。
+fn build_skin() -> termimad::MadSkin {
+    let mut skin = termimad::MadSkin::default();
+    // 默认 skin 给所有 header 加了 Underlined（看起来像链接），改为 Bold
+    for h in &mut skin.headers {
+        h.compound_style
+            .object_style
+            .attributes
+            .unset(Attribute::Underlined);
+        h.compound_style
+            .object_style
+            .attributes
+            .set(Attribute::Bold);
+    }
+    skin
 }
 
 /// 运行 TUI 循环，返回退出码。
@@ -41,11 +62,10 @@ pub fn run(
     file_name: &str,
 ) -> i32 {
     // 强制启用 ANSI 颜色输出（忽略 NO_COLOR 环境变量）。
-    // 我们是 TUI 应用，明确需要 truecolor 输出；NO_COLOR 会令 crossterm 抑制所有颜色。
-    crossterm::style::Colored::set_ansi_color_disabled(false);
+    Colored::set_ansi_color_disabled(false);
 
     let mut stdout = io::stdout();
-    let _ = execute!(stdout, EnterAlternateScreen);
+    let _ = execute!(stdout, EnterAlternateScreen, crossterm::event::EnableMouseCapture);
     let _ = enable_raw_mode();
 
     let mut terminal = match Terminal::new(CrosstermBackend::new(stdout)) {
@@ -54,11 +74,12 @@ pub fn run(
     };
 
     let highlighter = Highlighter::new();
-    let skin = termimad::MadSkin::default();
+    let skin = build_skin();
 
     let (w, _h) = current_size(&terminal);
-    let lines = build_lines(content, mode, syntax_token, w, &highlighter, &skin);
-    let mut doc = Doc::new(lines, mode, w);
+    let content_w = content_width(w);
+    let lines = build_lines(content, mode, syntax_token, content_w, &highlighter, &skin);
+    let mut doc = Doc::new(lines, mode, content_w);
 
     let exit_code = event_loop(
         &mut terminal,
@@ -73,7 +94,11 @@ pub fn run(
 
     // Cleanup
     let _ = disable_raw_mode();
-    let _ = execute!(terminal.backend_mut(), LeaveAlternateScreen);
+    let _ = execute!(
+        terminal.backend_mut(),
+        crossterm::event::DisableMouseCapture,
+        LeaveAlternateScreen
+    );
 
     exit_code
 }
@@ -83,6 +108,11 @@ fn current_size(terminal: &Term) -> (u16, u16) {
         .size()
         .map(|r| (r.width, r.height))
         .unwrap_or((80, 24))
+}
+
+/// 内容区宽度 = 终端宽度 - 左右边距。
+fn content_width(term_w: u16) -> u16 {
+    term_w.saturating_sub(H_MARGIN * 2)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -120,10 +150,19 @@ fn event_loop(
                     Action::None => {}
                 }
             }
+            Ok(Event::Mouse(m)) => {
+                let body_h = body_height(terminal);
+                match m.kind {
+                    MouseEventKind::ScrollUp => doc.scroll(-1, body_h),
+                    MouseEventKind::ScrollDown => doc.scroll(1, body_h),
+                    _ => {}
+                }
+            }
             Ok(Event::Resize(w, h)) => {
                 let body_h = (h as usize).saturating_sub(2);
-                let new_lines = build_lines(content, mode, syntax_token, w, hl, skin);
-                doc.replace_lines(new_lines, w, body_h);
+                let cw = content_width(w);
+                let new_lines = build_lines(content, mode, syntax_token, cw, hl, skin);
+                doc.replace_lines(new_lines, cw, body_h);
             }
             Ok(_) => {}
             Err(_) => return 1,
@@ -184,21 +223,27 @@ fn render_frame(f: &mut ratatui::Frame, doc: &Doc, file_name: &str) {
     ])
     .split(area);
 
-    // Header (bold)
+    // Header (bold, 左边距 1 字符)
     let header = Paragraph::new(format!(" {}", file_name))
         .style(Style::default().add_modifier(Modifier::BOLD));
     f.render_widget(header, chunks[0]);
 
-    // Body (virtual viewport)
+    // Body — 左右各留 H_MARGIN 字符边距
+    let body_area = Rect::new(
+        chunks[1].x + H_MARGIN,
+        chunks[1].y,
+        chunks[1].width.saturating_sub(H_MARGIN * 2),
+        chunks[1].height,
+    );
     let viewport = Viewport {
         lines: &doc.lines,
         top: doc.top,
     };
-    f.render_widget(viewport, chunks[1]);
+    f.render_widget(viewport, body_area);
 
-    // Footer (dim)
+    // Footer (dim, 左边距 1 字符)
     let footer = Paragraph::new(Line::from(vec![Span::styled(
-        FOOTER,
+        format!(" {}", FOOTER),
         Style::default().add_modifier(Modifier::DIM),
     )]))
     .alignment(Alignment::Left);
