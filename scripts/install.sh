@@ -41,6 +41,9 @@ info()  { printf '\033[36m==>\033[0m %s\n' "$*"; }
 
 need() { command -v "$1" >/dev/null 2>&1 || err "缺少依赖: $1"; }
 
+# 全局：供 EXIT trap 清理（trap 在 main 返回后触发，不能用 local）。
+tmpdir=""
+
 main() {
   need curl
   need tar
@@ -60,7 +63,6 @@ main() {
   local install_dir="${INSTALL_DIR:-${HOME}/.local/bin}"
   mkdir -p "$install_dir"
 
-  local tmpdir
   tmpdir="$(mktemp -d)"
   trap 'rm -rf "$tmpdir"' EXIT
 
