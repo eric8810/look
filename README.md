@@ -70,7 +70,7 @@ on the right side of the pipe, not to `curl`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/eric8810/look/main/scripts/install.sh \
-  | sudo env VERSION=v0.2.0 INSTALL_DIR=/usr/local/bin bash
+  | sudo env VERSION=v0.2.1 INSTALL_DIR=/usr/local/bin bash
 ```
 
 Windows: download [`dlook-x86_64-pc-windows-msvc.zip`](https://github.com/eric8810/look/releases/latest) from Releases and unzip.

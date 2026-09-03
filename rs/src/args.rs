@@ -8,7 +8,7 @@
 use std::io::Write;
 use std::process::exit;
 
-pub const VERSION: &str = "dlook 0.2.0";
+pub const VERSION: &str = "dlook 0.2.1";
 
 pub const HELP: &str = "\
 dlook — a minimal terminal file previewer
