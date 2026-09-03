@@ -31,25 +31,58 @@ SANS = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-ser
 CHAR_W = 0.6
 
 # ---------------------------------------------------------------------------
-# 吉祥物预处理:采样底色 + 边缘羽化(压平为纯 RGB,避免与 SVG 底色出现接缝)
+# 吉祥物预处理:洪水填充式抠背景(从四角连通的背景区域才透明,避免误伤
+# 猫身上的深色细节)→ alpha 羽化 → 保存带透明的 PNG。
 # ---------------------------------------------------------------------------
 
-def process_mascot(src, out, feather=48):
-    img = Image.open(src).convert("RGB")
+def process_mascot(src, out, key_tol=26, feather=3):
+    from collections import deque
+
+    img = Image.open(src).convert("RGBA")
     w, h = img.size
-    bg = img.getpixel((8, 8))
+    bg = img.getpixel((8, 8))[:3]
+    px = img.load()
 
-    # 羽化 mask:边缘向内 feather 像素渐隐
-    mask = Image.new("L", (w, h), 0)
-    from PIL import ImageDraw
-    d = ImageDraw.Draw(mask)
-    d.rectangle([feather, feather, w - feather, h - feather], fill=255)
-    mask = mask.filter(ImageFilter.GaussianBlur(feather // 2))
+    def key_dist(p):
+        return max(abs(p[0] - bg[0]), abs(p[1] - bg[1]), abs(p[2] - bg[2]))
 
-    flat = Image.new("RGB", (w, h), bg)
-    flat.paste(img, (0, 0), mask)
-    flat.save(out)
-    return bg, flat.size
+    # BFS:从四条边的背景色连通区域
+    visited = bytearray(w * h)
+    queue = deque()
+    for x in range(w):
+        for y in (0, h - 1):
+            if key_dist(px[x, y]) <= key_tol:
+                i = y * w + x
+                if not visited[i]:
+                    visited[i] = 1
+                    queue.append((x, y))
+    for y in range(h):
+        for x in (0, w - 1):
+            if key_dist(px[x, y]) <= key_tol:
+                i = y * w + x
+                if not visited[i]:
+                    visited[i] = 1
+                    queue.append((x, y))
+    while queue:
+        x, y = queue.popleft()
+        for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+            if 0 <= nx < w and 0 <= ny < h:
+                i = ny * w + nx
+                if not visited[i] and key_dist(px[nx, ny]) <= key_tol:
+                    visited[i] = 1
+                    queue.append((nx, ny))
+
+    # alpha:背景连通区 0,其余 255;再做高斯羽化软化边缘
+    alpha = Image.new("L", (w, h), 255)
+    ap = alpha.load()
+    for i, v in enumerate(visited):
+        if v:
+            ap[i % w, i // w] = 0
+    alpha = alpha.filter(ImageFilter.GaussianBlur(feather))
+
+    img.putalpha(alpha)
+    img.save(out)
+    return bg, (w, h)
 
 
 # ---------------------------------------------------------------------------
@@ -71,12 +104,12 @@ def build_svg(bg_hex, mascot_path, mascot_size):
     parts.append(
         f'<rect width="{W}" height="{H}" fill="url(#glow)"/>')
 
-    # ---- 吉祥物(左侧)----
+    # ---- 吉祥物(左侧,透明背景,放大居中偏上以平衡右侧文字重量)----
     mw, mh = mascot_size
-    target_h = 430
+    target_h = 505
     scale = target_h / mh
     tw, th = round(mw * scale), target_h
-    mx, my = 8, (H - th) // 2 - 12
+    mx, my = 6, (H - th) // 2 - 14
     with open(mascot_path, "rb") as f:
         b64 = base64.b64encode(f.read()).decode()
     parts.append(
@@ -84,7 +117,7 @@ def build_svg(bg_hex, mascot_path, mascot_size):
         f'href="data:image/png;base64,{b64}"/>')
 
     # ---- 右侧文字列 ----
-    tx = 560
+    tx = 545
 
     # wordmark
     parts.append(
@@ -106,10 +139,10 @@ def build_svg(bg_hex, mascot_path, mascot_size):
             parts.append(svg)
             cx += w + 12
 
-    # 安装命令 pill
+    # 安装命令 pill(字号与宽度按右侧留白平衡)
     cmd = "curl -fsSL https://raw.githubusercontent.com/eric8810/look/main/scripts/install.sh | bash"
-    cfs = 13
-    pw = len(cmd) * cfs * CHAR_W + 36
+    cfs = 12.5
+    pw = len(cmd) * cfs * CHAR_W + 34
     py = 402
     parts.append(
         f'<rect x="{tx}" y="{py}" width="{pw:.0f}" height="42" rx="21" fill="#10151d" '
