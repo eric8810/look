@@ -1,11 +1,9 @@
 //! crossterm 装配 + TUI 事件循环。
 //!
 //! 职责：raw mode / alt-screen / 鼠标捕获 / 事件读取 / 键位+滚轮映射 / resize /
-//! 文件变更热重载（notify） / 文本拖选与复制（selection） / cleanup。
+//! 文件变更热重载（stat 轮询）/ 文本拖选与复制（selection）/ cleanup。
 
 use std::io::{self, IsTerminal, Stdout};
-use std::path::Path;
-use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 
 use crossterm::clipboard::CopyToClipboard;
@@ -18,7 +16,6 @@ use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use crossterm::execute;
-use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
@@ -148,34 +145,17 @@ pub fn run(
     let lines = build_lines(initial_content, mode, syntax_token, content_w, &highlighter, &skin);
     let mut doc = Doc::new(lines, mode, content_w);
 
-    // 文件变更监听：watcher 线程 → mpsc channel → 事件循环
-    let (tx_file, rx_file) = channel::<()>();
-    let mut watcher = match start_file_watcher(file_path, tx_file) {
-        Some(w) => w,
-        None => {
-            // watcher 启动失败不致命：仍可正常预览，只是无热重载
-            eprintln!("warning: file watch unavailable, live reload disabled");
-            // 走无 watcher 的事件循环
-            let exit_code = event_loop(&mut terminal, &mut doc, file_path, mode, syntax_token, None, &highlighter, &skin);
-            let _ = disable_raw_mode();
-            let _ = execute!(terminal.backend_mut(), crossterm::event::DisableMouseCapture, LeaveAlternateScreen);
-            return exit_code;
-        }
-    };
-
     let exit_code = event_loop(
         &mut terminal,
         &mut doc,
         file_path,
         mode,
         syntax_token,
-        Some(&rx_file),
         &highlighter,
         &skin,
     );
 
     // Cleanup
-    let _ = watcher.unwatch(Path::new(file_path));
     let _ = disable_raw_mode();
     let _ = execute!(
         terminal.backend_mut(),
@@ -186,33 +166,10 @@ pub fn run(
     exit_code
 }
 
-/// 启动文件监听线程。文件被修改时向 channel 发送信号。
-fn start_file_watcher(
-    file_path: &str,
-    tx: std::sync::mpsc::Sender<()>,
-) -> Option<RecommendedWatcher> {
-    let mut watcher = RecommendedWatcher::new(
-        move |res: notify::Result<notify::Event>| {
-            if let Ok(event) = res {
-                // 只关心修改/创建事件（忽略 Access 等噪声）
-                if matches!(
-                    event.kind,
-                    EventKind::Modify(_) | EventKind::Create(_)
-                ) {
-                    let _ = tx.send(());
-                }
-            }
-        },
-        notify::Config::default(),
-    )
-    .ok()?;
-
-    // 监听文件本身（非递归）
-    watcher
-        .watch(Path::new(file_path), RecursiveMode::NonRecursive)
-        .ok()?;
-
-    Some(watcher)
+/// 文件的 stat 指纹(mtime + size),用于热重载轮询;不可读时返回 None。
+fn file_stamp(path: &str) -> Option<(std::time::SystemTime, u64)> {
+    let meta = std::fs::metadata(path).ok()?;
+    Some((meta.modified().ok()?, meta.len()))
 }
 
 fn current_size(terminal: &Term) -> (u16, u16) {
@@ -234,12 +191,12 @@ fn event_loop(
     file_path: &str,
     mode: Mode,
     syntax_token: Option<&str>,
-    file_rx: Option<&std::sync::mpsc::Receiver<()>>,
     hl: &Highlighter,
     skin: &termimad::MadSkin,
 ) -> i32 {
     // 当前文件内容（用于 resize / 文件变更时重排）
     let mut content: String = content::reload_content(file_path).unwrap_or_default();
+    let mut last_stamp = file_stamp(file_path);
     let mut ui = UiState::new();
 
     loop {
@@ -247,7 +204,7 @@ fn event_loop(
             render_frame(f, doc, file_path, ui.sel, ui.status_text())
         });
 
-        // 用 poll 非阻塞检查终端事件，间隔检查文件变更 channel
+        // 用 poll 非阻塞检查终端事件(200ms 超时兼作热重载轮询周期)
         if event::poll(Duration::from_millis(200)).unwrap_or(false) {
             match event::read() {
                 Ok(Event::Key(k)) => {
@@ -309,19 +266,21 @@ fn event_loop(
             edge_autoscroll(terminal, doc, &mut ui);
         }
 
-        // 检查文件变更 channel
-        if let Some(rx) = file_rx {
-            if rx.try_recv().is_ok() {
-                // 文件被修改：重新读取并重排
-                if let Some(new_content) = content::reload_content(file_path) {
-                    content = new_content;
-                    ui.sel = None; // 行结构变化,选区坐标失效
-                    let (w, _h) = current_size(terminal);
-                    let cw = content_width(w);
-                    let body_h = body_height(terminal);
-                    let new_lines = build_lines(&content, mode, syntax_token, cw, hl, skin);
-                    doc.replace_lines(new_lines, cw, body_h);
-                }
+        // 热重载:stat 轮询(mtime+size 变化即重排)。
+        // 替代 notify 依赖(省 ~150KB 体积);事件循环本就以 ~200ms 轮询,
+        // 检测延迟同量级。
+        let stamp = file_stamp(file_path);
+        if stamp != last_stamp {
+            last_stamp = stamp;
+            // 文件被修改：重新读取并重排
+            if let Some(new_content) = content::reload_content(file_path) {
+                content = new_content;
+                ui.sel = None; // 行结构变化,选区坐标失效
+                let (w, _h) = current_size(terminal);
+                let cw = content_width(w);
+                let body_h = body_height(terminal);
+                let new_lines = build_lines(&content, mode, syntax_token, cw, hl, skin);
+                doc.replace_lines(new_lines, cw, body_h);
             }
         }
     }

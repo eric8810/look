@@ -19,7 +19,6 @@ termimad = "0.35"
 minimad = "0.16"
 mermansi = "0.1.6"
 ansi-to-tui = "8.0"
-notify = "8.0.0"
 
 [profile.release]
 opt-level = "z"

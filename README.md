@@ -9,7 +9,7 @@
 [![release](https://img.shields.io/github/v/release/eric8810/look?color=brightgreen&label=release)](https://github.com/eric8810/look/releases)
 [![license](https://img.shields.io/github/license/eric8810/look?color=blue)](LICENSE)
 [![platforms](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-6e7681)](https://github.com/eric8810/look/releases/latest)
-[![binary size](https://img.shields.io/badge/binary-%E2%89%886.7%20MB-orange)](https://github.com/eric8810/look/releases/latest)
+[![binary size](https://img.shields.io/badge/binary-%E2%89%886.6%20MB-orange)](https://github.com/eric8810/look/releases/latest)
 [![rust](https://img.shields.io/badge/written%20in-Rust-dea584)](rs/)
 
 ```bash
