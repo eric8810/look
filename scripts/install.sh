@@ -4,7 +4,7 @@
 # 用法:
 #   curl -fsSL https://raw.githubusercontent.com/eric8810/look/main/scripts/install.sh | bash
 #
-# 可用环境变量:
+# 可用环境变量(注意要作用于管道右侧的 bash,如 `curl ... | VERSION=... bash`):
 #   VERSION   指定版本 (默认: latest), 例如 VERSION=v0.2.0
 #   INSTALL_DIR 安装目录 (默认: ~/.local/bin)
 

@@ -25,9 +25,12 @@ curl -fsSL https://raw.githubusercontent.com/eric8810/look/main/scripts/install.
 下载对应的预编译二进制并安装到 `~/.local/bin`。可用环境变量自定义：
 
 ```bash
-VERSION=v0.2.0 INSTALL_DIR=/usr/local/bin \
-  curl -fsSL https://raw.githubusercontent.com/eric8810/look/main/scripts/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/eric8810/look/main/scripts/install.sh \
+  | sudo env VERSION=v0.2.0 INSTALL_DIR=/usr/local/bin bash
 ```
+
+> 注意:环境变量必须作用于管道右侧的 `bash`(`curl ... | VAR=... bash`),
+> 写成 `VAR=... curl ... | bash` 时变量只作用于 curl,不会生效。
 
 Windows 用户请直接到 [Releases](https://github.com/eric8810/look/releases) 下载
 `dlook-x86_64-pc-windows-msvc.zip` 解压使用。
