@@ -1,4 +1,4 @@
-//! look —— 终端文件预览 CLI 入口（Rust 版）。
+//! dlook —— 终端文件预览 CLI 入口（Rust 版）。
 //!
 //! 装配流程：
 //!   parse_args → load_content(二进制检测 + 模式判定) → 非 TTY 直出
@@ -15,6 +15,7 @@ mod highlight;
 mod lang;
 mod markdown;
 mod mermaid;
+mod selection;
 mod termio;
 mod viewport;
 

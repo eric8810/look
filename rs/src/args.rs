@@ -1,4 +1,4 @@
-//! argv 解析：look <file> | --help/-h | --version/-V
+//! argv 解析：dlook <file> | --help/-h | --version/-V
 //!
 //! 退出码：
 //!   无参 / 参数 >1 → 2
@@ -8,15 +8,15 @@
 use std::io::Write;
 use std::process::exit;
 
-pub const VERSION: &str = "look 0.1.0";
+pub const VERSION: &str = "dlook 0.2.0";
 
 pub const HELP: &str = "\
-look — a minimal terminal file previewer
+dlook — a minimal terminal file previewer
 
 Usage:
-  look <file>        Preview a markdown / code / mermaid file in the terminal
-  look --help, -h    Show this help
-  look --version, -V Show version
+  dlook <file>        Preview a markdown / code / mermaid file in the terminal
+  dlook --help, -h    Show this help
+  dlook --version, -V Show version
 
 Keys:
   q / Esc            Quit

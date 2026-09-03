@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# install.sh — 安装 look (Rust 终端文件预览器) 的最新 release 二进制
+# install.sh — 安装 dlook (Rust 终端文件预览器) 的最新 release 二进制
 #
 # 用法:
 #   curl -fsSL https://raw.githubusercontent.com/eric8810/look/main/scripts/install.sh | bash
 #
 # 可用环境变量:
-#   VERSION   指定版本 (默认: latest), 例如 VERSION=v0.1.0
+#   VERSION   指定版本 (默认: latest), 例如 VERSION=v0.2.0
 #   INSTALL_DIR 安装目录 (默认: ~/.local/bin)
 
 set -euo pipefail
 
 OWNER="eric8810"
 REPO="look"
-BIN_NAME="look"
+BIN_NAME="dlook"
 
 # --- 平台检测 ---
 detect_platform() {
@@ -54,10 +54,10 @@ main() {
   local version="${VERSION:-latest}"
   local url
   if [ "$version" = "latest" ]; then
-    url="https://github.com/${OWNER}/${REPO}/releases/latest/download/look-${target}.tar.gz"
+    url="https://github.com/${OWNER}/${REPO}/releases/latest/download/dlook-${target}.tar.gz"
   else
     # VERSION 形如 v0.1.0
-    url="https://github.com/${OWNER}/${REPO}/releases/download/${version}/look-${target}.tar.gz"
+    url="https://github.com/${OWNER}/${REPO}/releases/download/${version}/dlook-${target}.tar.gz"
   fi
 
   local install_dir="${INSTALL_DIR:-${HOME}/.local/bin}"
@@ -74,7 +74,7 @@ main() {
   info "解压..."
   tar -xzf "$archive" -C "$tmpdir"
 
-  # 包内是单个名为 look 的二进制
+  # 包内是单个名为 dlook 的二进制
   if [ ! -f "$tmpdir/$BIN_NAME" ]; then
     err "压缩包内未找到二进制 $BIN_NAME"
   fi
@@ -92,7 +92,7 @@ main() {
       ;;
   esac
 
-  printf '\n运行 \033[32mlook README.md\033[0m 开始使用。\n'
+  printf '\n运行 \033[32mdlook README.md\033[0m 开始使用。\n'
 }
 
 main "$@"

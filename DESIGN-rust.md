@@ -499,7 +499,7 @@ panic = "abort"
 | 无参数 | 2 | help → stderr |
 | 参数 >1 | 2 | error + help → stderr |
 | `--help`/`-h` | 0 | help → stdout |
-| `--version`/`-V` | 0 | `look 0.1.0` → stdout |
+| `--version`/`-V` | 0 | `dlook 0.1.0` → stdout |
 | 文件不存在 / 不可读 / 二进制 / 目录 | 1 | `error: ...` → stderr |
 | 非 TTY(管道) | 0 | 原始内容 → stdout(无 TUI/无 truecolor) |
 
@@ -516,7 +516,7 @@ panic = "abort"
 
 ```bash
 cargo build --release
-BIN=./rs/target/release/look python3 test/e2e/run_acceptance.py
+BIN=./rs/target/release/dlook python3 test/e2e/run_acceptance.py
 ```
 
 63 项断言(A–H)直接套用。重点关注:
@@ -586,7 +586,7 @@ BIN=./rs/target/release/look python3 test/e2e/run_acceptance.py
 6. **`mermaid.rs` + `.mmd` 模式**:mermaid 渲染成图(跑通 I1/I2/I4)
 7. **`termio.rs` 打磨**:resize(含 mermaid 重渲节流)、Ctrl+C=130、alt-screen 恢复(跑通 C/D)
 8. **体积优化**:profile + (可选)syntect 自建子集(§7)
-9. **全量 E2E**:`BIN=./rs/target/release/look python3 test/e2e/run_acceptance.py` → 全 PASS
+9. **全量 E2E**:`BIN=./rs/target/release/dlook python3 test/e2e/run_acceptance.py` → 全 PASS
 
 每步对应一组 E2E 用例,渐进验收。
 
@@ -652,5 +652,5 @@ BIN=./rs/target/release/look python3 test/e2e/run_acceptance.py
 
 ### E2E 验收结果
 
-`BIN=./rs/target/release/look python3 test/e2e/run_acceptance.py`
+`BIN=./rs/target/release/dlook python3 test/e2e/run_acceptance.py`
 → **PASS=70 FAIL=0**(A–H 原 63 项 + I1–I4 新增 7 项)

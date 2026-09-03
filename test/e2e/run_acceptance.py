@@ -357,6 +357,116 @@ def scenario_I():
     s.close()
 
 
+# --------------------------------------------------------------------------
+# J. markdown 样式(DECISIONS D1/D2/D3/D6/D7)
+# --------------------------------------------------------------------------
+def _sgr(kind, btn, x, y):
+    """SGR 鼠标序列;x/y 为 1-based 终端坐标。btn: 0=左键按下, 32=左键拖动。"""
+    return f"\x1b[<{btn};{x};{y}{kind}"
+
+
+def scenario_J():
+    print("== J-markdown-style ==")
+    s = session("style.md")
+    check(s.wait_for("H1 Heading One", 6), "J1 start")
+    raw = s.raw_text()
+    txt = s.screen_text()
+
+    # D1: 标题分级上色(h1/h2 cyanBright=38;5;14,h3/h4 blueBright=38;5;12)
+    check("38;5;14" in raw, "J2 h1/h2 cyan (38;5;14)")
+    check("38;5;12" in raw, "J3 h3/h4 blue (38;5;12)")
+
+    # D2: H1 左对齐(标题贴左侧,非居中)
+    h1_row = next((i for i in range(24) if "H1 Heading One" in s.row(i)), None)
+    check(h1_row is not None and s.row(h1_row).index("H1") <= 2,
+          "J4 H1 left aligned")
+
+    # D6: 任务列表 checkbox
+    check("☑" in txt and "done task item" in txt, "J5 task done ☑")
+    check("☐" in txt and "open task item" in txt, "J6 task open ☐")
+
+    # D7: 表格圆角外框
+    check("╭" in txt and "╰" in txt, "J7 rounded table borders")
+
+    # D3: 链接样式化(label 下划线 + 亮蓝;URL 暗灰展示)
+    check("\x1b[4m" in raw, "J8 link label underlined (SGR 4)")
+    check("38;5;8" in raw, "J9 link url gray (38;5;8)")
+    check("example link" in txt and "(https://example.com/path)" in txt,
+          "J10 link label+url visible")
+    s.send_key("q"); s.wait_exit(3); s.close()
+
+
+# --------------------------------------------------------------------------
+# K. 文本拖选与复制(DECISIONS D11)
+# --------------------------------------------------------------------------
+def scenario_K():
+    print("== K-selection-copy ==")
+    # K1-K3: 拖选反显 + 松开自动复制(OSC 52)+ 状态栏
+    s = session("large.txt")
+    check(s.wait_for("MARKER:0000", 6), "K1 start")
+    base = len(s.raw_text())
+    s.send(_sgr("M", 0, 3, 3)); s.feed(0.15)
+    s.send(_sgr("M", 32, 30, 3)); s.feed(0.15)
+    s.send(_sgr("m", 0, 31, 3)); s.feed(0.3)
+    raw = s.raw_text()[base:]
+    check("\x1b[7m" in raw, "K2 drag selection reversed (SGR 7)")
+    check("\x1b]52;c;" in raw, "K3 mouseup auto-copy via OSC 52")
+    check("copied" in s.screen_text(), "K4 status shows copied")
+
+    # K5: y 手动复制(选区在松开后保留;y 复制后清除选区)
+    base = len(s.raw_text())
+    s.send("y"); s.feed(0.3)
+    check("\x1b]52;c;" in s.raw_text()[base:], "K5 y manual copy (OSC 52)")
+
+    # K6: 重新拖选 → 有选区时 Esc 只清除选择,不退出
+    base = len(s.raw_text())
+    s.send(_sgr("M", 0, 3, 4)); s.feed(0.15)
+    s.send(_sgr("M", 32, 30, 4)); s.feed(0.15)
+    s.send(_sgr("m", 0, 31, 4)); s.feed(0.3)
+    check("\x1b[7m" in s.raw_text()[base:], "K6 re-select works after y")
+    s.send_key("Escape"); s.feed(0.3)
+    alive = s.wait_exit(0.8)
+    check(alive is None, "K7 Esc with selection does not quit")
+    s.send_key("Escape")
+    code = s.wait_exit(3)
+    check(code == 0, f"K8 Esc without selection quits 0 (got {code})")
+    s.close()
+
+    # K9: 拖到视口底边缘 → 自动滚动(内容上移)
+    s = session("large.txt")
+    check(s.wait_for("MARKER:0000", 6), "K9 start")
+    before = s.row(2)
+    s.send(_sgr("M", 0, 3, 3)); s.feed(0.15)
+    for _ in range(6):
+        s.send(_sgr("M", 32, 40, 23)); s.feed(0.35)
+    s.send(_sgr("m", 0, 41, 23)); s.feed(0.3)
+    check(s.row(2) != before, "K10 edge drag auto-scrolls viewport")
+    s.send_key("q"); s.wait_exit(3); s.close()
+
+
+# --------------------------------------------------------------------------
+# L. 代码语言覆盖(DECISIONS D4:two-face 全量语法集)
+# --------------------------------------------------------------------------
+def scenario_L():
+    print("== L-languages ==")
+    # two-face 前这些语言无色;现在是回归断言
+    s = session("lang.toml")
+    check(s.wait_for("host", 8), "L1 toml render")
+    check(s.has_truecolor(), "L2 toml highlighted (truecolor)")
+    s.send_key("q"); s.wait_exit(3); s.close()
+
+    s = session("lang.vue")
+    check(s.wait_for("count", 8), "L3 vue render")
+    check(s.has_truecolor(), "L4 vue highlighted (truecolor)")
+    s.send_key("q"); s.wait_exit(3); s.close()
+
+    # ts: 原先回退 js,现在原生 TS 语法
+    s = session("sample.ts")
+    check(s.wait_for("TypeScript", 8), "L5 ts render")
+    check(s.has_truecolor(), "L6 ts highlighted (truecolor)")
+    s.send_key("q"); s.wait_exit(3); s.close()
+
+
 def main():
     print(f"BIN = {BIN}")
     print(f"FIX = {FIX}")
@@ -366,7 +476,8 @@ def main():
         subprocess.run(["bash", os.path.join(ROOT, "test/e2e/gen-large.sh")], check=True)
 
     for sc in [scenario_A, scenario_B, scenario_C, scenario_D,
-               scenario_E, scenario_F, scenario_G, scenario_H, scenario_I]:
+               scenario_E, scenario_F, scenario_G, scenario_H, scenario_I,
+               scenario_J, scenario_K, scenario_L]:
         try:
             sc()
         except Exception as ex:

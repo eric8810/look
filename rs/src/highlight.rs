@@ -1,7 +1,9 @@
 //! syntect 语法高亮集成。
 //!
-//! 使用 default-fancy（纯 Rust fancy-regex 引擎，无 C 依赖）+ 默认语法集/主题集。
-//! 输出带 truecolor ANSI SGR 的字符串，经 ansi_lines 转为 ratatui Line。
+//! 语法集用 two-face(默认集 + 全量 Sublime 扩展语法,DECISIONS D4),
+//! 覆盖 TypeScript/Vue/Svelte/TOML/INI/GraphQL/Dockerfile/PowerShell 等;
+//! 缺失语言按回退链兜底(如 tsx→js、vue→html)。
+//! 输出带 truecolor ANSI SGR 的字符串,经 ansi_lines 转为 ratatui Line。
 
 use syntect::easy::HighlightLines;
 use syntect::highlighting::ThemeSet;
@@ -16,7 +18,8 @@ pub struct Highlighter {
 
 impl Highlighter {
     pub fn new() -> Self {
-        let ss = SyntaxSet::load_defaults_newlines();
+        // two-face:默认语法集 + 扩展语法(纯 Rust fancy-regex 引擎,无 C 依赖)
+        let ss = two_face::syntax::extra_newlines();
         let ts = ThemeSet::load_defaults();
         // 使用暗色主题；E2E 只查 truecolor 存在性，不查具体色值
         let theme_name = "base16-ocean.dark".to_string();
@@ -67,17 +70,27 @@ impl Highlighter {
         }
     }
 
-    /// 查找语法：先按扩展名，再按 token（名称/扩展名）。
+    /// 查找语法：先按扩展名，再按 token（名称/扩展名），最后按回退链兜底。
     fn find_syntax(&self, token: &str) -> Option<&SyntaxReference> {
         // 先按扩展名查
         if let Some(s) = self.ss.find_syntax_by_extension(token) {
             return Some(s);
         }
-        // 再按 token 查（支持 "python"/"rust" 等语言名）
+        // 再按 token 查（支持 "python"/"rust"/"kotlin" 等语言名）
         if let Some(s) = self.ss.find_syntax_by_token(token) {
             return Some(s);
         }
-        None
+        // 回退链：语法集中缺失的语言用最接近的可用语法
+        let fallbacks: &[&str] = match token {
+            "ts" | "tsx" | "typescript" | "mts" | "cts" => &["js"],
+            "jsx" => &["js"],
+            "vue" | "svelte" => &["html"],
+            "kotlin" | "kt" | "kts" => &["java"],
+            _ => &[],
+        };
+        fallbacks
+            .iter()
+            .find_map(|t| self.ss.find_syntax_by_extension(t))
     }
 }
 

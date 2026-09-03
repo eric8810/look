@@ -1,0 +1,9 @@
+# two-face language fixture (scenario L)
+
+[server]
+host = "127.0.0.1"
+port = 8080
+enabled = true
+
+[[items]]
+name = "alpha"

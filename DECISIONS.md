@@ -1,0 +1,173 @@
+# 渲染能力补齐:待决策清单
+
+> 依据 [GAP.md](GAP.md) 的差距分析,列出 Rust 版(dlook)补齐渲染能力需要拍板的决策项。
+> 每项含选项、代价与推荐;**状态**栏为「待决策」,决策后在「决策记录」区追加结论与日期即可。
+> 工作量档:S(≤ 半天)/ M(1–2 天)/ L(≥ 3 天)。
+
+## 总览
+
+| # | 决策项 | 推荐 | 工作量 | 状态 |
+|---|---|---|---|---|
+| D1 | 标题分级上色 | A:对齐 vue-tui 默认配色 | S | ✅ 已实施 |
+| D2 | H1 对齐方式 | A:左对齐 | S | ✅ 已实施 |
+| D3 | 链接渲染 | B1:样式化 label(先不做 OSC 8) | M | ✅ 已实施 |
+| D4 | 代码语言覆盖 | A:two-face 全量语法集 | M | ✅ 已实施 |
+| D5 | 高亮主题选择 | A:暂不做,保持单主题 | — | ✅ 已决策:不做 |
+| D6 | 任务列表 checkbox | A:做 | S | ✅ 已实施 |
+| D7 | 表格圆角边框 | A:切 ROUNDED preset | S | ✅ 已实施(方案调整) |
+| D8 | 数学公式 | A:不做 | — | ✅ 已决策:不做 |
+| D9 | 图片(终端图形协议) | A:不做(远期 ratatui-image) | — | ✅ 已决策:不做 |
+| D10 | markdown 主题配置化 | A:不做 | — | ✅ 已决策:不做 |
+| D11 | 文本拖选与复制 | A:应用内拖选 + OSC 52(分两步) | M | ✅ 已实施(①②均落地) |
+
+---
+
+## D1 标题分级上色(对应 G1)
+
+**背景**:vue-tui 默认 h1/h2 青、h3/h4 蓝;dlook 全部仅粗体,是当前最大视觉差距。
+termimad `MadSkin.headers[i].set_fg()` 原生支持,改动集中在 [termio.rs](rs/src/termio.rs) `build_skin()`。
+
+| 选项 | 说明 | 代价 |
+|---|---|---|
+| A 对齐 vue-tui 默认 | h1/h2 `cyanBright`、h3/h4 `blueBright`、h5/h6 纯粗体 | 约 15 行;两版观感一致 |
+| B 自定配色 | 例如 base16-ocean 色板取色,与代码高亮主题统一 | 需先定设计 |
+| C 不做 | 保持纯粗体 | 视觉差距保留 |
+
+**推荐 A**。E2E 影响:H1 用例仅断言 SGR 1(bold)存在,加色不破坏;可顺手加一条颜色断言。
+
+## D2 H1 对齐方式(对应 G2)
+
+**背景**:termimad 默认 H1 居中,vue-tui 全部左对齐(实测)。
+
+| 选项 | 说明 |
+|---|---|
+| A 左对齐 | `skin.headers[0].align = Left`,与 vue-tui 一致;一屏多标题时阅读动线稳定 |
+| B 保留居中 | termimad 默认;单标题文档更像"大标题" |
+
+**推荐 A**(与 vue-tui 对齐,E2E H 用例的屏幕断言需同步核对)。
+
+## D3 链接渲染(对应 G3)
+
+**背景**:minimad 无 `[label](url)` 语法,链接原样输出;vue-tui 渲染为蓝色+下划线 label 并输出
+OSC 8 可点击超链接。**阻碍:ratatui 0.30.2 无 hyperlink 支持**(已查源码),OSC 8 只能手工嵌序列。
+
+| 选项 | 说明 | 代价 |
+|---|---|---|
+| A 完整对齐(label 样式 + OSC 8) | 在 [markdown.rs](rs/src/markdown.rs) prose 管道解析行内链接,label 上色,URL 写入 OSC 8 序列 | M+:ratatui 不识别 hyperlink,需把 `\x1b]8;;url\x07label\x1b]8;;\x07` 当普通 span 文本输出,ansi-to-tui 能否无损透传 OSC 序列**待验证**;不透传则要改渲染层 |
+| B1 仅样式化 | label 蓝+下划线,URL 保留灰色展示 | M:自定义行内解析器(与 minimad 复合样式叠加要小心);观感先对齐 |
+| B2 隐藏 URL | 只显示 label | 同 B1,但丢信息,markdown 阅读器不建议 |
+| C 不做 | 保持原样文本 | 0 |
+
+**推荐 B1**:先补观感,OSC 8 等 ratatui 官方支持后升级为 A。非 TTY 管道输出不受影响(直出原文)。
+
+## D4 代码语言覆盖(对应 G4)
+
+**背景**:Node 版 shiki 40 语言;dlook 的 syntect 默认集缺 TS(回退 js)、Vue/Svelte/TOML/INI/
+GraphQL/Dockerfile/PowerShell/SCSS/Less/Swift/Kotlin/Dart(无色)。涉及 [lang.rs](rs/src/lang.rs)
+与 [markdown.rs](rs/src/markdown.rs) `normalize_fence_lang` 两处映射。
+
+| 选项 | 说明 | 代价 |
+|---|---|---|
+| A two-face crate | 预打包完整 Sublime 语法集(+主题),API 兼容 syntect | M;二进制增大(幅度**待实测**,预计 1–3 MB 级);两处映射表可大幅简化 |
+| B extra_syntaxes | 自己挑 `.sublime-syntax` 文件打包,按需增补 | M+;体积可控但要维护语法文件来源与 license |
+| C 维持现状 | 缺的语言无色、TS 用 JS 语法 | 0;TS 高亮有偏差(无 type 关键字色) |
+
+**推荐 A**:6 MB → 预计 7–9 MB 仍远小于 Node 版 110 MB;先加一个体积对比 checkpoint 再合入。
+
+## D5 高亮主题选择
+
+**背景**:Node 版固定 github-dark,dlook 固定 base16-ocean.dark,均为单一主题。
+
+| 选项 | 说明 |
+|---|---|
+| A 暂不做 | 保持单主题;与 Node 版平手 |
+| B `--theme` flag | syntect ThemeSet 自带十余主题,加参数成本低(S),但需考虑浅色终端默认值 |
+
+**推荐 A**(先补差距项,主题选择是新功能非补齐)。
+
+## D6 任务列表 checkbox(对应 G5)
+
+**背景**:vue-tui 渲染 `[x]`/`[ ]` 为 checkbox;minimad 原样输出。
+
+| 选项 | 说明 |
+|---|---|
+| A 做 | prose 预处理 `- [x] `/`- [ ] ` → `☑ `/`☐ `(顺序:在 termimad 排版前替换源文本) |
+| B 不做 | 原样文本也可读 |
+
+**推荐 A**,S 工作量,观感收益明显;注意只替换行首列表位置,避免误伤正文中的 `[x]`。
+
+## D7 表格圆角边框(对应 G6)
+
+**背景**:vue-tui 圆角 `╭┬╮`,termimad 默认方角;termimad 自带 `ROUNDED_TABLE_BORDER_CHARS`。
+
+| 选项 | 说明 |
+|---|---|
+| A 切圆角 | `skin.table_border_chars = ROUNDED_TABLE_BORDER_CHARS`,一行 |
+| B 保留方角 | 与 vue-tui 有样式差异,非功能差距 |
+
+**推荐 A**(若追求两版观感一致;E2E 表格用例断言的是单元格文本,不受边框字符影响——合入前跑一遍确认)。
+
+## D8 数学公式(对应 G7)
+
+**背景**:vue-tui 库能力为 optional katex → 行内 Unicode 近似(块级公式不支持);**Node 版未装
+katex,实际不可用**。Rust 侧无等价轻量方案。
+
+**推荐 A:不做**。两版产品层现状一致;Unicode 近似公式观感一般,投入产出比低。
+
+## D9 图片(对应 G8)
+
+**背景**:vue-tui 库能力为 kitty/iTerm2 图形协议(需 resolver);Node 版未用。Rust 侧可用
+`ratatui-image`,但需检测终端协议支持,且 alt-screen + 滚动视口下图片滚动/重绘复杂度高。
+
+**推荐 A:不做(远期)**。文本预览器场景收益低;若做,建议独立评估 ratatui-image 与协议探测。
+
+## D10 markdown 主题配置化(对应 G9)
+
+**背景**:vue-tui 有 `theme` 覆盖 prop(hex 真彩);Node 版未用。dlook 若做需设计 CLI 参数或配置文件。
+
+**推荐 A:不做**。D1 定稿默认配色即可;配置化属于新功能。
+
+## D11 文本拖选与复制(对应 G10)
+
+**背景**:两版产品层都没有可用的选择复制——Node 版 vue-tui 库有完整能力
+(拖选反显、视口边缘自动滚动、松开即复制、OSC 52、Escape 清除),但 app 未传 `selection` 未启用
+(实测拖选零输出);Rust 版无实现。且两版都开了鼠标捕获,**终端原生拖选被吞**,只能 Shift+拖动绕过。
+对标行为见 [GAP.md](GAP.md) G10。
+
+| 选项 | 说明 | 代价 |
+|---|---|---|
+| A 应用内拖选 + OSC 52(对齐 vue-tui 默认行为) | Cargo 开 crossterm `osc52` feature;事件循环加 `MouseEventKind::Down/Drag/Up(Left)` 状态机;渲染时选中 span 加 `REVERSED`;松开鼠标执行 `CopyToClipboard` | M。建议**分两步**:① 拖选高亮 + `y`/Enter 手动复制;② 升级为松开即复制(autoCopy)+ 拖到视口边缘自动滚动 |
+| B 零成本止血 | README 写明「Shift+拖动 = 终端原生选择复制」 | 0;不算功能,只是行为说明 |
+| C 不做 | 维持现状 | 0 |
+
+**推荐 A(分两步)+ 无论选哪个都顺手做 B(README 一句话)**。
+
+注意事项:
+- OSC 52 依赖终端支持(kitty/Ghostty/iTerm2/wezterm/Alacritty 支持;tmux 需 `set-clipboard on`);
+  复制失败应静默降级(状态栏提示「clipboard unsupported」即可,不报错)。
+- 选区取文本需基于 `Doc.lines` 的屏幕行(截断/换行后的),与 vue-tui 的
+  `SelectionTextProvider` 做法等价;md 模式注意已换行的段落拼回时按视觉行复制即可。
+- E2E:现有用例不受影响(滚轮映射不变);新增用例需 pty 发 SGR 鼠标序列
+  (press/drag/release)断言反显 SGR 7 与 `\x1b]52;c;` 输出。
+
+---
+
+## 决策记录
+
+2026-09-03,全部 11 项按推荐方案落地(实施与验证见下表;E2E 套件扩至 A–L,96 项全过;单元测试 15 项全过;
+另有 tmux 真实终端套件 [run-tmux.sh](test/e2e/run-tmux.sh) T1–T29 共 33 项全过 —— 含 **OSC 52 剪贴板内容**验证,
+即 `set-clipboard on` 下 tmux 捕获的粘贴 buffer 与选区文本逐字一致)。
+
+| # | 结论 | 日期 | 备注 |
+|---|---|---|---|
+| D1 | A:h1/h2 青(`Color::Cyan`→SGR 38;5;14)、h3/h4 蓝(`Color::Blue`→38;5;12)、h5/h6 纯粗体 | 2026-09-03 | `termio.rs build_skin`;E2E J2/J3 |
+| D2 | A:H1 左对齐(`headers[0].align = Left`) | 2026-09-03 | E2E J4 |
+| D3 | B1:`[label](url)` → label 亮蓝+下划线(SGR 4/38;5;12)+ ` (url)` 暗灰(38;5;8) | 2026-09-03 | markdown.rs `style_links`,仅作用于无样式 span;OSC 8 待 ratatui 支持(0.30.2 无 hyperlink,已验证);E2E J8–J10 |
+| D4 | A:two-face 0.5.2(`syntect-default-fancy`,无 onig C 依赖);lang.rs/markdown.rs 映射扩展 + 回退链(tsx→js、vue/svelte→html、kotlin→java) | 2026-09-03 | **体积 checkpoint:6,067,296 → 6,680,552 字节(+613 KB,+10.1%)**,远低于预估 1–3 MB;TOML/Vue/TS 原生语法,E2E L1–L6 |
+| D5 | A:不做,保持 base16-ocean.dark 单主题 | 2026-09-03 | — |
+| D6 | A:`- [x]`/`[ ]`(含有序/嵌套)→ ☑/☐,仅 prose 段 | 2026-09-03 | markdown.rs `render_task_checkboxes`;E2E J5/J6 |
+| D7 | A(方案调整):termimad FmtText 路径把 TableRule 固定为 Other 位置、**不画外框**(与 D7 原前提不符),preset 切换无效 → 改为渲染后处理 `frame_tables`:按分隔线几何插入 `╭─┬─╮`/`╰─┴─╯` | 2026-09-03 | E2E J7;`skin.table_border_chars` 同时切 ROUNDED(为未来路径留位) |
+| D8 | A:不做 | 2026-09-03 | — |
+| D9 | A:不做(远期 ratatui-image) | 2026-09-03 | — |
+| D10 | A:不做 | 2026-09-03 | — |
+| D11 | A(①②均落地)+ B:拖选反显(SGR 7)、Shift+点击扩展、视口边缘自动滚动(120ms 节流)、**松开即 OSC 52 复制**(`crossterm osc52` feature)、`y`/Enter 手动复制、Esc 清除(无选区才退出)、状态栏 `copied N chars`;README 记录 Shift+拖动原生选择 | 2026-09-03 | 新增 `selection.rs`(内容坐标模型,滚动稳定)+ `viewport.rs` 反显;resize/热重载清除选区;复制失败静默降级;E2E K1–K10 |

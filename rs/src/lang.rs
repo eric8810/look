@@ -1,9 +1,9 @@
 //! 扩展名 → 语言 ID / 模式映射。
 //! .md/.markdown → Markdown 模式；.mmd/.mermaid → Mermaid 模式；其它 → Code 模式。
 //!
-//! 注：syntect 默认语法集（default-fancy）不含 TypeScript/Vue/Svelte/GraphQL/
-//! Docker/PowerShell/Dart/Swift/Kotlin/Toml/INI/SCSS/Less。这些扩展名回退到最接近的
-//! 可用语法（如 ts→js），或无色纯文本。保持 find_syntax_by_extension 能命中。
+//! 语法集为 two-face 全量 Sublime 语法(DECISIONS D4),覆盖 TS/Vue/Svelte/TOML/
+//! INI/GraphQL/Dockerfile/PowerShell/SCSS/Less/Swift/Kotlin/Dart 等;
+//! 个别缺失语言由 Highlighter::find_syntax 的回退链兜底。
 
 /// 预览模式。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -13,12 +13,13 @@ pub enum Mode {
     Mermaid,
 }
 
-/// 扩展名 → syntect 可识别的文件扩展名 token（用于 find_syntax_by_extension）。
-/// 只映射 syntect 默认语法集中存在的扩展名；未知返回 None（→ 无色纯文本）。
+/// 扩展名 → syntect token(先按扩展名查,再按 token 查,见 Highlighter::find_syntax)。
 fn ext_to_syntax_token(ext: &str) -> Option<&'static str> {
     Some(match ext {
-        "ts" | "tsx" | "mts" | "cts" => "js", // TS 回退到 JS（默认集无 TS）
-        "js" | "jsx" | "mjs" | "cjs" => "js",
+        "ts" | "mts" | "cts" => "ts",
+        "tsx" => "tsx",
+        "js" | "mjs" | "cjs" => "js",
+        "jsx" => "jsx",
         "py" | "pyi" => "py",
         "rs" => "rs",
         "go" => "go",
@@ -28,32 +29,41 @@ fn ext_to_syntax_token(ext: &str) -> Option<&'static str> {
         "cs" => "cs",
         "rb" => "rb",
         "php" => "php",
+        "swift" => "swift",
+        "kt" | "kts" => "kotlin",
+        "dart" => "dart",
         "scala" => "scala",
         "sh" | "bash" | "zsh" | "fish" => "sh",
         "json" | "jsonc" => "json",
         "yaml" | "yml" => "yaml",
+        "toml" => "toml",
+        "ini" | "cfg" | "conf" => "ini",
         "html" | "htm" => "html",
         "xml" => "xml",
         "css" => "css",
+        "scss" => "scss",
+        "less" => "less",
+        "vue" => "vue",
+        "svelte" => "svelte",
         "sql" => "sql",
+        "graphql" | "gql" => "graphql",
         "md" | "markdown" => "md",
         "lua" => "lua",
         "r" => "R",
         "pl" | "pm" => "pl",
         "diff" | "patch" => "diff",
         "bat" | "cmd" => "bat",
-        // 以下默认集无语法：返回 None → 无色纯文本
-        // swift, kt, dart, toml, ini, vue, svelte, graphql, dockerfile, ps1, scss, less
+        "ps1" | "ps" | "psm1" => "ps1",
         _ => return None,
     })
 }
 
-/// 特殊文件名（无扩展名但有意义的语言）→ syntect 扩展名 token。
+/// 特殊文件名（无扩展名但有意义的语言）→ syntect token。
 fn name_to_syntax_token(name: &str) -> Option<&'static str> {
     Some(match name {
         "makefile" | "justfile" => "makefile",
         "gemfile" | "rakefile" => "rb",
-        // dockerfile 默认集无语法 → None
+        "dockerfile" => "dockerfile",
         _ => return None,
     })
 }

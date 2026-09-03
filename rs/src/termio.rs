@@ -1,14 +1,18 @@
 //! crossterm 装配 + TUI 事件循环。
 //!
 //! 职责：raw mode / alt-screen / 鼠标捕获 / 事件读取 / 键位+滚轮映射 / resize /
-//! 文件变更热重载（notify） / cleanup。
+//! 文件变更热重载（notify） / 文本拖选与复制（selection） / cleanup。
 
 use std::io::{self, IsTerminal, Stdout};
 use std::path::Path;
 use std::sync::mpsc::channel;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEventKind};
+use crossterm::clipboard::CopyToClipboard;
+use crossterm::event::{
+    self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent,
+    MouseEventKind,
+};
 use crossterm::style::{Attribute, Colored};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -29,6 +33,7 @@ use crate::highlight::Highlighter;
 use crate::lang::Mode;
 use crate::markdown;
 use crate::mermaid;
+use crate::selection;
 use crate::viewport::Viewport;
 
 type Term = Terminal<CrosstermBackend<Stdout>>;
@@ -38,15 +43,62 @@ const H_MARGIN: u16 = 1;
 
 const FOOTER: &str = "q quit  ↑↓/jk/scroll  space/pgdn  g/G top/bottom  Ctrl+C quit";
 
+/// 状态栏消息存活时间。
+const STATUS_TTL: Duration = Duration::from_millis(1500);
+
+/// 拖选边缘自动滚动的最小间隔。
+const AUTO_SCROLL_INTERVAL: Duration = Duration::from_millis(120);
+
+/// TUI 交互状态:选区 + 拖拽 + 状态栏消息。
+struct UiState {
+    sel: Option<selection::Selection>,
+    /// 鼠标左键按下中(Down 后 Up 前)。
+    dragging: bool,
+    /// 最近一次指针位置(屏幕坐标 列,行)。
+    pointer: Option<(u16, u16)>,
+    /// 上次边缘自动滚动时刻(None = 从未,首次立即触发)。
+    last_autoscroll: Option<Instant>,
+    /// 状态栏消息 + 产生时刻。
+    status: Option<(String, Instant)>,
+}
+
+impl UiState {
+    fn new() -> Self {
+        UiState {
+            sel: None,
+            dragging: false,
+            pointer: None,
+            last_autoscroll: None,
+            status: None,
+        }
+    }
+
+    /// 未过期的状态栏消息。
+    fn status_text(&self) -> Option<&str> {
+        self.status.as_ref().and_then(|(msg, at)| {
+            if at.elapsed() < STATUS_TTL {
+                Some(msg.as_str())
+            } else {
+                None
+            }
+        })
+    }
+}
+
 /// 判定 stdout 是否为 TTY。
 pub fn is_tty() -> bool {
     io::stdout().is_terminal()
 }
 
-/// 构建 markdown skin：标题用粗体而非下划线。
+/// 构建 markdown skin(对齐 vue-tui 默认主题,见 GAP.md G1/G2/G6):
+///   - 标题:粗体(去 termimad 默认下划线);h1/h2 青、h3/h4 蓝、h5/h6 无色
+///   - H1 左对齐(termimad 默认居中,vue-tui 为左对齐)
+///   - 表格圆角边框(vue-tui 用 ╭┬╮;termimad 默认方角 ┌┬┐)
 fn build_skin() -> termimad::MadSkin {
+    use crossterm::style::Color;
+
     let mut skin = termimad::MadSkin::default();
-    for h in &mut skin.headers {
+    for (i, h) in skin.headers.iter_mut().enumerate() {
         h.compound_style
             .object_style
             .attributes
@@ -55,7 +107,14 @@ fn build_skin() -> termimad::MadSkin {
             .object_style
             .attributes
             .set(Attribute::Bold);
+        match i {
+            0 | 1 => h.compound_style.set_fg(Color::Cyan), // cyanBright
+            2 | 3 => h.compound_style.set_fg(Color::Blue), // blueBright
+            _ => {}
+        }
     }
+    skin.headers[0].align = termimad::Alignment::Left;
+    skin.table_border_chars = termimad::ROUNDED_TABLE_BORDER_CHARS;
     skin
 }
 
@@ -181,15 +240,35 @@ fn event_loop(
 ) -> i32 {
     // 当前文件内容（用于 resize / 文件变更时重排）
     let mut content: String = content::reload_content(file_path).unwrap_or_default();
+    let mut ui = UiState::new();
 
     loop {
-        let _ = terminal.draw(|f| render_frame(f, doc, file_path));
+        let _ = terminal.draw(|f| {
+            render_frame(f, doc, file_path, ui.sel, ui.status_text())
+        });
 
         // 用 poll 非阻塞检查终端事件，间隔检查文件变更 channel
         if event::poll(Duration::from_millis(200)).unwrap_or(false) {
             match event::read() {
                 Ok(Event::Key(k)) => {
                     if k.kind != KeyEventKind::Press {
+                        continue;
+                    }
+                    // 选区相关键优先于滚动/退出映射(DECISIONS D11):
+                    //   Esc:有选区 → 清除;无选区 → 退出
+                    //   y / Enter:有非空选区 → 手动复制
+                    if k.code == KeyCode::Esc && ui.sel.is_some() {
+                        ui.sel = None;
+                        continue;
+                    }
+                    if (k.code == KeyCode::Char('y') || k.code == KeyCode::Enter)
+                        && k.modifiers.is_empty()
+                        && ui.sel.is_some_and(|s| !s.is_empty())
+                    {
+                        if let Some(sel) = ui.sel {
+                            copy_selection(terminal, doc, &sel, &mut ui.status);
+                        }
+                        ui.sel = None;
                         continue;
                     }
                     match map_key(k) {
@@ -209,16 +288,13 @@ fn event_loop(
                     }
                 }
                 Ok(Event::Mouse(m)) => {
-                    let body_h = body_height(terminal);
-                    match m.kind {
-                        MouseEventKind::ScrollUp => doc.scroll(-1, body_h),
-                        MouseEventKind::ScrollDown => doc.scroll(1, body_h),
-                        _ => {}
-                    }
+                    handle_mouse(terminal, doc, &mut ui, m);
                 }
                 Ok(Event::Resize(w, h)) => {
                     let body_h = (h as usize).saturating_sub(2);
                     let cw = content_width(w);
+                    // 重排后行结构变化,内容坐标失效 → 清除选区
+                    ui.sel = None;
                     let new_lines =
                         build_lines(&content, mode, syntax_token, cw, hl, skin);
                     doc.replace_lines(new_lines, cw, body_h);
@@ -228,12 +304,18 @@ fn event_loop(
             }
         }
 
+        // 拖选中指针停在视口边缘 → 持续自动滚动并延伸选区(DECISIONS D11 ②)
+        if ui.dragging {
+            edge_autoscroll(terminal, doc, &mut ui);
+        }
+
         // 检查文件变更 channel
         if let Some(rx) = file_rx {
             if rx.try_recv().is_ok() {
                 // 文件被修改：重新读取并重排
                 if let Some(new_content) = content::reload_content(file_path) {
                     content = new_content;
+                    ui.sel = None; // 行结构变化,选区坐标失效
                     let (w, _h) = current_size(terminal);
                     let cw = content_width(w);
                     let body_h = body_height(terminal);
@@ -289,7 +371,151 @@ fn map_key(k: KeyEvent) -> Action {
     }
 }
 
-fn render_frame(f: &mut ratatui::Frame, doc: &Doc, file_name: &str) {
+// ---------------------------------------------------------------------------
+// 鼠标拖选(DECISIONS D11)
+// ---------------------------------------------------------------------------
+
+/// 鼠标事件分发:滚轮滚动 + 左键拖选状态机。
+fn handle_mouse(terminal: &mut Term, doc: &mut Doc, ui: &mut UiState, m: MouseEvent) {
+    let body_h = body_height(terminal);
+    let (_, rows) = current_size(terminal);
+
+    match m.kind {
+        MouseEventKind::ScrollUp => doc.scroll(-1, body_h),
+        MouseEventKind::ScrollDown => doc.scroll(1, body_h),
+
+        // 左键按下:定锚(Shift+点击 → 扩展已有选区)
+        MouseEventKind::Down(MouseButton::Left) => {
+            if let Some(p) = to_content_point(doc, m.column, m.row, rows) {
+                if m.modifiers.contains(KeyModifiers::SHIFT) {
+                    match &mut ui.sel {
+                        Some(sel) => sel.focus = p,
+                        None => ui.sel = Some(selection::Selection::new(p)),
+                    }
+                } else {
+                    ui.sel = Some(selection::Selection::new(p));
+                }
+                ui.dragging = true;
+                ui.last_autoscroll = None;
+                ui.pointer = Some((m.column, m.row));
+            }
+        }
+
+        // 拖动:移动焦点;指针停在视口边缘时自动滚动
+        MouseEventKind::Drag(MouseButton::Left) if ui.dragging => {
+            ui.pointer = Some((m.column, m.row));
+            if let Some(p) = to_content_point(doc, m.column, m.row, rows) {
+                if let Some(sel) = &mut ui.sel {
+                    sel.focus = p;
+                }
+            }
+            edge_autoscroll(terminal, doc, ui);
+        }
+
+        // 松开:非空选区 → 自动复制(autoCopy);空选(点击)→ 清除
+        MouseEventKind::Up(MouseButton::Left) if ui.dragging => {
+            ui.dragging = false;
+            if let Some(sel) = ui.sel {
+                if !sel.is_empty() {
+                    copy_selection(terminal, doc, &sel, &mut ui.status);
+                } else {
+                    ui.sel = None;
+                }
+            }
+        }
+
+        _ => {}
+    }
+}
+
+/// 屏幕坐标(列,行)→ 内容坐标。行必须落在 body 区(跳过 header/footer),
+/// 行索引钳制到文档末尾,列换算掉 H_MARGIN。
+fn to_content_point(
+    doc: &Doc,
+    col: u16,
+    row: u16,
+    rows: u16,
+) -> Option<selection::SelPoint> {
+    // body:第 1 行 ..= rows-2(第 0 行 header,第 rows-1 行 footer)
+    if row == 0 || row + 1 >= rows {
+        return None;
+    }
+    let line = doc.top + row.saturating_sub(1) as usize;
+    let line = line.min(doc.lines.len().saturating_sub(1));
+    Some(selection::SelPoint {
+        line,
+        col: col.saturating_sub(H_MARGIN) as usize,
+    })
+}
+
+/// 拖选中指针停在视口顶/底边缘 → 自动滚动一行并把焦点延伸到新的可见边界行。
+/// 节流:AUTO_SCROLL_INTERVAL 内不重复滚动。
+fn edge_autoscroll(terminal: &mut Term, doc: &mut Doc, ui: &mut UiState) {
+    let Some((col, row)) = ui.pointer else { return };
+    let (_, rows) = current_size(terminal);
+    let body_h = body_height(terminal);
+    // 视口顶边缘 = body 第一行(row 1);底边缘 = body 最后一行(rows-2)
+    let at_top = row == 1;
+    let at_bottom = row + 2 == rows;
+    if !at_top && !at_bottom {
+        return;
+    }
+    if ui
+        .last_autoscroll
+        .is_some_and(|t| t.elapsed() < AUTO_SCROLL_INTERVAL)
+    {
+        return;
+    }
+    ui.last_autoscroll = Some(Instant::now());
+
+    let delta: isize = if at_top { -1 } else { 1 };
+    let before_top = doc.top;
+    doc.scroll(delta, body_h);
+    if doc.top == before_top {
+        return; // 已到文档顶/底,无法继续滚动
+    }
+    if let Some(sel) = &mut ui.sel {
+        let line = if at_top {
+            doc.top
+        } else {
+            doc.top + body_h.saturating_sub(1)
+        };
+        sel.focus = selection::SelPoint {
+            line,
+            col: col.saturating_sub(H_MARGIN) as usize,
+        };
+    }
+}
+
+/// 复制选区文本到系统剪贴板(OSC 52;写入失败静默降级为状态栏提示)。
+fn copy_selection(
+    terminal: &mut Term,
+    doc: &Doc,
+    sel: &selection::Selection,
+    status: &mut Option<(String, Instant)>,
+) {
+    let text = selection::text(&doc.lines, sel);
+    let chars = text.chars().count();
+    let result = execute!(
+        terminal.backend_mut(),
+        CopyToClipboard::to_clipboard_from(text.as_str())
+    );
+    *status = Some(match result {
+        Ok(()) => (format!("copied {chars} chars (OSC 52)"), Instant::now()),
+        Err(_) => (
+            "clipboard unsupported (OSC 52 write failed)".to_string(),
+            Instant::now(),
+        ),
+    });
+}
+
+fn render_frame(
+    f: &mut ratatui::Frame,
+    doc: &Doc,
+    file_name: &str,
+    sel: Option<selection::Selection>,
+    status: Option<&str>,
+) {
     let area = f.area();
     let chunks = Layout::vertical([
         Constraint::Length(1), // header
@@ -313,12 +539,14 @@ fn render_frame(f: &mut ratatui::Frame, doc: &Doc, file_name: &str) {
     let viewport = Viewport {
         lines: &doc.lines,
         top: doc.top,
+        selection: sel,
     };
     f.render_widget(viewport, body_area);
 
-    // Footer (dim, 左边距 1 字符)
+    // Footer (dim, 左边距 1 字符);有状态消息时优先显示(复制结果等)
+    let footer_text = format!(" {}", status.unwrap_or(FOOTER));
     let footer = Paragraph::new(Line::from(vec![Span::styled(
-        format!(" {}", FOOTER),
+        footer_text,
         Style::default().add_modifier(Modifier::DIM),
     )]))
     .alignment(Alignment::Left);

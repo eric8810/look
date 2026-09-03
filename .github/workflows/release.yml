@@ -49,19 +49,19 @@ jobs:
         if: matrix.archive == 'tar.gz'
         run: |
           cd rs/target/${{ matrix.target }}/release
-          tar czf ../../../look-${{ matrix.target }}.tar.gz look
+          tar czf ../../../dlook-${{ matrix.target }}.tar.gz dlook
 
       - name: Package (windows)
         if: matrix.archive == 'zip'
         shell: pwsh
         run: |
-          Compress-Archive -Path "rs/target/${{ matrix.target }}/release/look.exe" -DestinationPath "rs/look-${{ matrix.target }}.zip"
+          Compress-Archive -Path "rs/target/${{ matrix.target }}/release/dlook.exe" -DestinationPath "rs/dlook-${{ matrix.target }}.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: look-${{ matrix.target }}
-          path: rs/look-${{ matrix.target }}.${{ matrix.archive }}
+          name: dlook-${{ matrix.target }}
+          path: rs/dlook-${{ matrix.target }}.${{ matrix.archive }}
 
   release:
     name: publish to GitHub Release

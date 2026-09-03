@@ -5,3 +5,5 @@ preview
 sea-prep.blob
 *.log
 __pycache__/
+dlook
+test/fixtures/bad.mmd

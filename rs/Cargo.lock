@@ -383,6 +383,7 @@ version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8b9f2e4c67f833b660cdb0a3523065869fb35570177239812ed4c905aeff87b"
 dependencies = [
+ "base64",
  "bitflags 2.13.1",
  "crossterm_winapi",
  "derive_more",
@@ -534,6 +535,21 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.3",
+]
+
+[[package]]
+name = "dlook"
+version = "0.2.0"
+dependencies = [
+ "ansi-to-tui",
+ "crossterm",
+ "mermansi",
+ "minimad",
+ "notify",
+ "ratatui",
+ "syntect",
+ "termimad",
+ "two-face",
 ]
 
 [[package]]
@@ -1247,20 +1263,6 @@ dependencies = [
  "precomputed-hash",
  "selectors",
  "thiserror 2.0.20",
-]
-
-[[package]]
-name = "look"
-version = "0.1.0"
-dependencies = [
- "ansi-to-tui",
- "crossterm",
- "mermansi",
- "minimad",
- "notify",
- "ratatui",
- "syntect",
- "termimad",
 ]
 
 [[package]]
@@ -2516,6 +2518,17 @@ checksum = "b1e27c91459209c2986af3dcf603a5a74a4368754ce37414f59acc971167f643"
 dependencies = [
  "displaydoc",
  "zerovec",
+]
+
+[[package]]
+name = "two-face"
+version = "0.5.2+bat-0.26.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "915be7adc2ff6f4338acbf71f3eda0a146f46003b992a1669c674308610efdac"
+dependencies = [
+ "serde",
+ "serde_derive",
+ "syntect",
 ]
 
 [[package]]
