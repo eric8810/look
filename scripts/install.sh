@@ -2,7 +2,7 @@
 # install.sh — 安装 dlook (Rust 终端文件预览器) 的最新 release 二进制
 #
 # 用法:
-#   curl -fsSL https://raw.githubusercontent.com/eric8810/look/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/eric8810/dlook/main/scripts/install.sh | bash
 #
 # 可用环境变量(注意要作用于管道右侧的 bash,如 `curl ... | VERSION=... bash`):
 #   VERSION   指定版本 (默认: latest), 例如 VERSION=v0.2.0
@@ -11,7 +11,7 @@
 set -euo pipefail
 
 OWNER="eric8810"
-REPO="look"
+REPO="dlook"
 BIN_NAME="dlook"
 
 # --- 平台检测 ---

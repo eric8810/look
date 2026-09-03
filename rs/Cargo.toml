@@ -4,7 +4,7 @@ version = "0.2.1"
 edition = "2021"
 license = "MIT"
 description = "A fast, tiny terminal document previewer: markdown, code and mermaid, beautifully rendered"
-repository = "https://github.com/eric8810/look"
+repository = "https://github.com/eric8810/dlook"
 
 [[bin]]
 name = "dlook"

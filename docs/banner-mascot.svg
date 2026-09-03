@@ -9,7 +9,7 @@
 <rect x="730.08" y="262" width="133" height="28" rx="14" fill="#141a23" stroke="#2b3340"/><text x="796" y="281" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif" font-size="13" fill="#c9d3e0">40+ languages</text>
 <rect x="545" y="306" width="149" height="28" rx="14" fill="#141a23" stroke="#2b3340"/><text x="619" y="325" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif" font-size="13" fill="#c9d3e0">mermaid → ASCII</text>
 <rect x="705.9" y="306" width="205" height="28" rx="14" fill="#141a23" stroke="#2b3340"/><text x="809" y="325" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif" font-size="13" fill="#c9d3e0">select &amp; copy (OSC 52)</text>
-<rect x="545" y="402" width="702" height="42" rx="21" fill="#10151d" stroke="#33415a"/>
-<text x="563" y="429" font-family="SF Mono, Cascadia Code, JetBrains Mono, Consolas, Menlo, DejaVu Sans Mono, monospace" font-size="12.5" fill="#7ee2a8">curl -fsSL https://raw.githubusercontent.com/eric8810/look/main/scripts/install.sh | bash</text>
+<rect x="545" y="402" width="709" height="42" rx="21" fill="#10151d" stroke="#33415a"/>
+<text x="563" y="429" font-family="SF Mono, Cascadia Code, JetBrains Mono, Consolas, Menlo, DejaVu Sans Mono, monospace" font-size="12.5" fill="#7ee2a8">curl -fsSL https://raw.githubusercontent.com/eric8810/dlook/main/scripts/install.sh | bash</text>
 <text x="548" y="474" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif" font-size="13" fill="#5d6b80">v0.2.1 · ~6.6 MB static binary · Linux · macOS · Windows · no runtime</text>
 </svg>

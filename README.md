@@ -6,14 +6,14 @@
 
 **Markdown · Code · Mermaid — beautifully rendered in your terminal.**
 
-[![release](https://img.shields.io/github/v/release/eric8810/look?color=brightgreen&label=release)](https://github.com/eric8810/look/releases)
-[![license](https://img.shields.io/github/license/eric8810/look?color=blue)](LICENSE)
-[![platforms](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-6e7681)](https://github.com/eric8810/look/releases/latest)
-[![binary size](https://img.shields.io/badge/binary-%E2%89%886.6%20MB-orange)](https://github.com/eric8810/look/releases/latest)
+[![release](https://img.shields.io/github/v/release/eric8810/dlook?color=brightgreen&label=release)](https://github.com/eric8810/dlook/releases)
+[![license](https://img.shields.io/github/license/eric8810/dlook?color=blue)](LICENSE)
+[![platforms](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-6e7681)](https://github.com/eric8810/dlook/releases/latest)
+[![binary size](https://img.shields.io/badge/binary-%E2%89%886.6%20MB-orange)](https://github.com/eric8810/dlook/releases/latest)
 [![rust](https://img.shields.io/badge/written%20in-Rust-dea584)](rs/)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/eric8810/look/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/eric8810/dlook/main/scripts/install.sh | bash
 ```
 
 Linux · macOS · Windows — single static binary, no runtime, starts instantly.
@@ -61,7 +61,7 @@ Real renders, captured from the binary (regenerate with `python3 scripts/gen-pro
 ### One-liner (prebuilt binary, no Rust toolchain needed)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/eric8810/look/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/eric8810/dlook/main/scripts/install.sh | bash
 ```
 
 Auto-detects your platform (Linux/macOS, x86_64/aarch64) and installs to
@@ -69,11 +69,11 @@ Auto-detects your platform (Linux/macOS, x86_64/aarch64) and installs to
 on the right side of the pipe, not to `curl`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/eric8810/look/main/scripts/install.sh \
+curl -fsSL https://raw.githubusercontent.com/eric8810/dlook/main/scripts/install.sh \
   | sudo env VERSION=v0.2.1 INSTALL_DIR=/usr/local/bin bash
 ```
 
-Windows: download [`dlook-x86_64-pc-windows-msvc.zip`](https://github.com/eric8810/look/releases/latest) from Releases and unzip.
+Windows: download [`dlook-x86_64-pc-windows-msvc.zip`](https://github.com/eric8810/dlook/releases/latest) from Releases and unzip.
 
 ### From source
 

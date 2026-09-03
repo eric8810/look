@@ -1,10 +1,10 @@
 {
-  "name": "look",
+  "name": "dlook",
   "version": "0.1.0",
   "description": "A minimal terminal file previewer (markdown + code/text) built with vue-tui",
   "type": "module",
   "bin": {
-    "look": "dist/terminal.cjs",
+    "dlook": "dist/terminal.cjs",
     "preview": "dist/terminal.cjs"
   },
   "files": [

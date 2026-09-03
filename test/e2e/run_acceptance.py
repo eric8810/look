@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-look — E2E acceptance test suite (scenarios A–H from DESIGN.md §15).
+dlook — E2E acceptance test suite (scenarios A–H from DESIGN.md §15).
 
 Uses a real pty + pyte terminal emulator (tmux is unavailable in this env).
 Run:  BIN=./preview python3 test/e2e/run_acceptance.py

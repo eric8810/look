@@ -1,8 +1,11 @@
-# doc-preview 设计文档
+# dlook 设计文档
 
 > 一个最简单的终端文件预览 CLI，能渲染 markdown 格式，也能看代码/纯文本。
 > 技术栈：[vue-tui](https://vue-tui.pages.dev/)（Vue 3 terminal UI + stdout renderer）。
 > 打包：Node SEA 单文件二进制。
+>
+> **注**:本项目原名 `look`,2026-09 起项目名/仓库名统一改为 **dlook**(产物二进制自 v0.2.0 起即为 dlook)。
+> 文中旧称 `look`/`preview` 均指同一项目的历史阶段。
 
 ---
 

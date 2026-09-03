@@ -20,6 +20,7 @@
 | D10 | markdown 主题配置化 | A:不做 | — | ✅ 已决策:不做 |
 | D11 | 文本拖选与复制 | A:应用内拖选 + OSC 52(分两步) | M | ✅ 已实施(①②均落地) |
 | D12 | 产物体积 | 保持全功能 6.59MB;UPX 与功能裁剪均否决 | — | ✅ 已决策 |
+| D13 | 项目名/仓库名 | 统一改为 dlook(含 GitHub repo 重命名) | S | ✅ 已实施 |
 
 ---
 
@@ -173,6 +174,19 @@ pyte E2E 96 + tmux E2E 33 全过;代价:启动 1.2ms → 104ms、杀软误报风
 notify → stat 轮询热重载(行为等价,事件循环本就以 200ms 轮询,去掉整个 watcher 线程/channel/依赖)。
 
 **结果**:6,680,568 → **6,589,160 字节(−91KB)**;验证:单元 15 + pyte 96 + tmux 33 全过,热重载冒烟(编辑后 ≤500ms 重排)通过。
+
+---
+
+## D13 项目名/仓库名统一改为 dlook(2026-09-03 追加)
+
+**背景**:v0.2.0 起产物二进制已名为 dlook,但项目/仓库名仍是 `look`(github.com/eric8810/look),
+视觉评审也指出「dlook vs look」易造成认知不一致。决策:**统一为 dlook**。
+
+**实施**:
+- GitHub repo 重命名 `eric8810/look` → `eric8810/dlook`(旧 URL 自动 301 重定向,旧安装命令仍有效)
+- install.sh `REPO=dlook`;README 徽章/安装 URL;rs/Cargo.toml `repository`
+- package.json(遗留 Node 版)name/bin、设计文档标题 + 改名说明
+- 宣传图内嵌安装命令同步重生成(gen-promo.py / gen-mascot-banner.py)
 
 ---
 

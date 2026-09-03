@@ -23,4 +23,4 @@ fn main() {
 | code | syntect | truecolor |
 | mermaid | mermansi | truecolor |
 
-Docs: [README](https://github.com/eric8810/look) — drag to select, release to copy.
+Docs: [README](https://github.com/eric8810/dlook) — drag to select, release to copy.

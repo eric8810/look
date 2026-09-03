@@ -398,7 +398,7 @@ def gen_banner(md_scr, path_out, width=1280, height=940):
     parts.append(f'<g transform="translate({tx},{ty})">{term}</g>')
 
     # 安装命令 pill
-    cmd = "curl -fsSL https://raw.githubusercontent.com/eric8810/look/main/scripts/install.sh | bash"
+    cmd = "curl -fsSL https://raw.githubusercontent.com/eric8810/dlook/main/scripts/install.sh | bash"
     cfs = 15
     cw = cfs * CHAR_W
     pw = len(cmd) * cw + 44

@@ -140,7 +140,7 @@ def build_svg(bg_hex, mascot_path, mascot_size):
             cx += w + 12
 
     # 安装命令 pill(字号与宽度按右侧留白平衡)
-    cmd = "curl -fsSL https://raw.githubusercontent.com/eric8810/look/main/scripts/install.sh | bash"
+    cmd = "curl -fsSL https://raw.githubusercontent.com/eric8810/dlook/main/scripts/install.sh | bash"
     cfs = 12.5
     pw = len(cmd) * cfs * CHAR_W + 34
     py = 402

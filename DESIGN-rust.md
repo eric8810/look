@@ -1,6 +1,6 @@
-# look (Rust 版) 设计文档
+# dlook (Rust 版) 设计文档
 
-> `look`/`preview` 的 Rust 重写版。目标:把单文件二进制从 **110MB(Node SEA)降到 ~4–6MB**,
+> `look`/`preview`(现统一更名 **dlook**)的 Rust 重写版。目标:把单文件二进制从 **110MB(Node SEA)降到 ~4–6MB**,
 > 同时保持现有 E2E 验收契约,并**新增两项 TS 版没有的能力**:
 > ① mermaid 图表在终端渲染成 ASCII/Unicode 图;② markdown 围栏代码块语法上色。
 > 技术栈:Rust + [ratatui](https://ratatui.rs)(diff 渲染)+ [crossterm](https://crates.io/crates/crossterm)(终端 I/O)

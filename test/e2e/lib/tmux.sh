@@ -4,7 +4,7 @@
 # NOTE: This environment has no tmux, so the primary harness is the Python
 # pty+pyte runner (test/e2e/run_acceptance.py). This file is provided for
 # environments where tmux is available and an tmux-based run is desired.
-SESSION="look-acc"
+SESSION="dlook-acc"
 BIN="${BIN:-./preview}"
 FIX="$(cd "$(dirname "$0")/../fixtures" && pwd)"
 
